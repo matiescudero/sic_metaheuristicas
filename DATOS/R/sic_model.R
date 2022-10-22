@@ -43,6 +43,21 @@ df_to_matrix = function(distance_df){
   return(dij_matrix)
 }
 
+# Generar instancia
+make_instance = function(dij, ai, ni, wj){
+#'Agrupa las entradas en una lista
+#'
+#' @param dij (matrix) Matriz de distancia entre todos los nodos i y todos los paraderos j
+#' @param ai (array) Vector de demanda de los nodos i
+#' @param ni (array) Vector que incluye la suma entre el producto entre dij*wj para todos los paraderos que se encuentran a 500 mts de un nodo
+#' @param wj (array) Vector de pesos de los paraderos j
+#' 
+#' @return instancia (list) Lista con los valores estáticos de entrada
+  
+  instancia = list(dij = dij, ai = ai, ni = ni, wj = wj)
+  return(instancia)
+}
+
 
 # Generar solución inicial aleatoria
 
@@ -65,7 +80,29 @@ generate_initial_solution = function(df_paraderos, p){
 }
 
 
+get_swap_numbers = function(xj){
+  
+#' Obtiene las posiciones para realizar el operador swap. Si al evaluar estas posiciones dentro del
+#' vector xj son idénticas se obtendrán nuevos números hasta que dejen de ser iguales.
+  
+  n = length(xj)
+  is_equal = TRUE
+  
+  while(is_equal){
+    
+    n_swap = sample(2:n, 2)
+    
+    if(xj[n_swap[1]] != xj[n_swap[2]]){
+      is_equal = FALSE
+    }
+  }
+  
+  return(n_swap)
+}
+
+
 swap<-function(sol,i,j){
+  
   piv<-sol[i]
   sol[i]<-sol[j]
   sol[j]<-piv
@@ -73,28 +110,100 @@ swap<-function(sol,i,j){
 }
 
 
-evaluate_SIC = function(dij, wj, ai, ni, xj){
+evaluate_SIC = function(instancia, xj){
+#' Evalua la interacción espacial entre un nodo de demanda i (zona censal) y un paradero j.
+#' 
+#' @param instancia (list) Lista que in
+#' @param xj (array) Vector de solución que indica que paraderos j son localizados y cuales no
+#' 
+#' @return acum (int) Valor de interacción espacial entre el nodo i y el paradero j
+#'     
   
+  ## Se almacenan las entradas en variables
+  dij = instancia$dij
+  ai = instancia$ai
+  ni = instancia$ni
+  wj = instancia$wj
+  
+  ## Se inicializa la suma y los n's
   acum = 0
-  n_zc = nrow(nodos_demanda)
-  n_paraderos = nrow(paraderos)
+  n_zc = length(ai)
+  n_paraderos = length(wj)
   
+  ## Ciclo para evaluar el modelo SIC
   for(i in 1:n_zc){
     for(j in 1:n_paraderos){
+      
+      ## Valor de Sij para un par (i,j)
       sij = ((wj[j]**2 * dij[i,j]**-2)/(ni[i]))*ai[i]*xj[j]
       acum = acum + sij
       
     }
   }
+  
   return(acum)
 }
 
 
+calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0){
 
-evaluate_SIC(dij_matrix, wj, ai, ni, xj)
+  
+  ## Se inicializan las listas
+  lista_deltas = numeric(100)
+  lista_si = numeric(100)
+   
+  ## Se inicializa xj y si
+  xj_temp = xj
+  si_temp = spatial_interaction
+  
+  # largo de la solución
+  n = length(xj_temp)
+  
+  for(i in 1:100){
+    
+    ## Se llena la lista de spatial interaction
+    lista_si[i] = si_temp
+    
+    ## Se aplica operador sobre la solución inicial
+    n_swap = get_swap_numbers(xj_temp)
+    xj_temp = swap(xj_temp, n_swap[1], n_swap[2])
+    
+    print(xj_temp)
+    
+    
+    ## Para cada ciclo se evalúa el vector solución generado 
+    nuevo_si = evaluate_SIC(instancia, xj_temp)
+    print("nuevo_si:  ")
+    print(nuevo_si)
+    
+    ## Se calcula el delta de la interacción espacial
+    delta_si = nuevo_si - si_temp
+    
+    ## Se almacena el delta
+    lista_deltas[i] = delta_si
+    
+    ## El SI actual pasa a ser el nuevo
+    si_temp = nuevo_si
+    
+  }
+  
+  print("------lista_deltas:")
+  print(lista_deltas)
+  print("------")
+  print(lista_si)
+  
+  ## Se calcula el delta promedio
+  delta_promedio = mean(abs(lista_deltas))
+  
+  print("------")
+  print(delta_promedio)
+  
+  ## De acuerdo a la fórmula exp(-(delta_promedio)/t_inicial) = p0, despejando queda:
+  t_inicial = -delta_promedio/log(p0)
+  
+  return(t_inicial)
+}
 
-
-xj = rep(1, 99)
 
 # Generar conexión
 
@@ -114,16 +223,19 @@ dij_matrix = df_to_matrix(dij)
 
 # Se transforman las columnas a vectores
 
-## Demanda
-ai = nodos_demanda$ai
-ni = nodos_demanda$ni
-
-## Paraderos
-wj = paraderos$wj
+## Se agrupan las entradas de interés en una única instancia
+instancia = make_instance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, paraderos$wj)
 
 # SIMULATED ANNEALING
 
 ## Se genera la solución inicial
 xj = generate_initial_solution(paraderos, 90)
+
+
+## Evaluación SIC
+spatial_interaction = evaluate_SIC(instancia, xj)
+
+## 
+initial_t = calculate_initial_temperature(instancia, xj, spatial_interaction, 0.5)
 
 
