@@ -29,10 +29,9 @@ connect_to_db = function(dvr, db, host, port, user, passwd){
 
 # Almacenar tablas espaciales
 
-postgis_to__rownames(dij_matrix, "zc_id")
-  dij_matrix = as.matrix(dij_matrix)
-  return(dij_matrix)df = function(connection, layer){
+postgis_to_df = function(connection, layer){
   df = st_read(connection, layer)
+  return(df)
 }
 
 # Transformar dataframe de distancias a matriz  dij_matrix = column_to
@@ -170,13 +169,9 @@ calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0)
     n_swap = get_swap_numbers(xj_temp)
     xj_temp = swap(xj_temp, n_swap[1], n_swap[2])
     
-    print(xj_temp)
-    
     
     ## Para cada ciclo se evalúa el vector solución generado 
     nuevo_si = evaluate_SIC(instancia, xj_temp)
-    print("nuevo_si:  ")
-    print(nuevo_si)
     
     ## Se calcula el delta de la interacción espacial
     delta_si = nuevo_si - si_temp
@@ -189,16 +184,9 @@ calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0)
     
   }
   
-  print("------lista_deltas:")
-  print(lista_deltas)
-  print("------")
-  print(lista_si)
-  
   ## Se calcula el delta promedio
   delta_promedio = mean(abs(lista_deltas))
-  
-  print("------")
-  print(delta_promedio)
+
   
   ## De acuerdo a la fórmula exp(-(delta_promedio)/t_inicial) = p0, despejando queda:
   t_inicial = -delta_promedio/log(p0)
@@ -206,7 +194,7 @@ calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0)
   return(t_inicial)
 }
 
-simulated_annealing = function(instancia, xj_ini, n_iter, alpha){
+simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
   #' 
   #' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
@@ -222,7 +210,9 @@ simulated_annealing = function(instancia, xj_ini, n_iter, alpha){
   #'   
   ## Variables de tracking
   eval_si = numeric()
+  eval_si_iter = numeric()
   eval_mejor = numeric()
+  eval_iter = numeric()
   temp = numeric()
   
   # Inicialización soluciones (xj)
@@ -240,54 +230,65 @@ simulated_annealing = function(instancia, xj_ini, n_iter, alpha){
   
   ## Contador para ciclo loop
   i = 1
+  i_ciclo = 1
   n = length(xj)
   
   ## Ciclo while
-  while(i < n_iter){
+  while(i < max_iter){
     
-    #otro wail
+    t_iter = 1
     
-    n_swap = get_swap_numbers(xj)
-    xj_test = swap(xj, n_swap[1], n_swap[2])
-    si_test = evaluate_SIC(instancia, xj_test)
-    
-    # Se chequea si se reemplaza la solución
-    delta_si = spatial_interaction - si_test
-    
-    if(exp(-(delta_si)/t) > runif(1)){ 
+    while (t_iter < iter_temp){
+      #otro wail
       
-      xj = xj_test
-      spatial_interaction = si_test
-    }
-    
-    # Se actualiza la mejor solución
-    if(si_test >= mejor_si){
-      mejor_xj = xj_test
-      mejor_si = si_test
-      # Si la solución es la mejor hasta el momento, se reinicia el contador
-      i = 1
-    }else{
-      # Si la solución del iterador es peor, se suma uno al contador y se pasa a la sig iteración,
-      # El ciclo termina una vez que al iterar n_iter veces la solución no mejore.
-      i = i + 1
-    }
-    
-    # Variables de trackeo
-    eval_si = c(eval_si, spatial_interaction)
-    eval_mejor = c(eval_mejor, mejor_si)
-    temp = c(temp, t)
-    
-    ##Equilibrium state?
+      n_swap = get_swap_numbers(xj)
+      xj_test = swap(xj, n_swap[1], n_swap[2])
+      si_test = evaluate_SIC(instancia, xj_test)
+      
+      # Se chequea si se reemplaza la solución
+      delta_si = spatial_interaction - si_test
+      
+      if(exp(-(delta_si)/t) > runif(1)){ 
+        
+        xj = xj_test
+        spatial_interaction = si_test
+      }
+      
+      # Se actualiza la mejor solución
+      if(si_test >= mejor_si){
+        mejor_xj = xj_test
+        mejor_si = si_test
+        # Si la solución es la mejor hasta el momento, se reinicia el contador
+        i = 1
+      }else{
+        # Si la solución del iterador es peor, se suma uno al contador y se pasa a la sig iteración,
+        # El ciclo termina una vez que al iterar n_iter veces la solución no mejore.
+        i = i + 1
+      }
+      
+      # Variables de trackeo
+      eval_si = c(eval_si, spatial_interaction)
+      eval_mejor = c(eval_mejor, mejor_si)
+      temp = c(temp, t)
+      
+      t_iter = t_iter + 1
+      }
     
     # Se aplica un factor de enfriamiento de alpha (parámetro de la función)
     t = t*alpha
+    
+    eval_iter = c(eval_iter, i_ciclo)
+    eval_si_iter = c(eval_si_iter, spatial_interaction)
+    i_ciclo = i_ciclo + 1
   }
   
   return(list(xj = mejor_xj, 
               spatial_interaction = mejor_si, 
               eval_si=eval_si, 
               eval_mejor=eval_mejor,
-              temp = temp))
+              temp = temp,
+              eval_iter = eval_iter,
+              eval_si_iter = eval_si_iter))
 }
 
 
@@ -320,23 +321,105 @@ xj_ini = generate_initial_solution(paraderos, 90)
 
 ### Resultados ####
 
-resultados_sa = simulated_annealing(instancia, xj_ini, 200, 0.5)
+resultados_sa = simulated_annealing(instancia, xj_ini, 400, 10, 0.5)
 
-resultados$spatial_interaction
+resultados_sa$spatial_interaction
 
+jpeg("rplot.jpg", width = 900, height = 500)
 
-plot(resultados$eval_si, type = "l", col = "red", 
-     main = "Simulated Annealing\n Operador SWAP",
+plot((resultados_sa$eval_si), type = "l", col = "red",lwd = 2, 
+     main = "Simulated Annealing\n Modelo SIC",
+     xlab = "N° iteración",
+     ylab = "Spatial Interaction")
+
+dev.off()
+
+## Plot para iteraciones más pequeño
+plot(resultados_sa$eval_si_iter, type = "l", col = "red",
+     sub = "temp = 10",
+     main = "Simulated Annealing\n Modelo SIC",
      xlab = "N° iteración",
      ylab = "Spatial Interaction")
 
 
-
 ## Nuevos resultados
-paraderos$xj = resultados$xj
+paraderos$xj = resultados_sa$xj
 
 
 #output
 st_write(obj = paraderos, 
          "DATOS/SHP/paraderos_sa.shp")
 
+
+
+
+
+
+## TEST
+
+xj_base = generate_initial_solution(paraderos, 99)
+
+max_sic = evaluate_SIC(instancia, xj_base)
+
+
+# Tracking
+eval_iter = numeric()
+eval_si = numeric()
+eval_xj = numeric()
+eval_time = numeric()
+eval_plot = numeric()
+eval_dif = numeric()
+
+for (i in 85:98){
+  
+  #reloj
+  start_time = Sys.time()
+  
+  xj_ini = generate_initial_solution(paraderos, i)
+  
+  resultados_sa = simulated_annealing(instancia, xj_ini, 300, 10, 0.9)
+  
+  end_time = Sys.time()
+  
+  time_iter = as.numeric(end_time - start_time)
+  
+  xj_iter = resultados_sa$xj
+  si_iter = resultados_sa$spatial_interaction
+  dif_iter = round(max_sic - si_iter,2)
+  
+  jpeg(paste("DATOS/JPEG/sic_sa_",i,"_paraderos.jpg",sep = ""), width = 1000, height = 700)
+  
+  plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
+              main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
+              xlab = "N° iteración",
+              ylab = "Diferencia con S.I original")
+  
+  dev.off()
+  
+  eval_iter = c(eval_iter, i)
+  eval_si = c(eval_si, si_iter)
+  eval_xj = c(eval_xj, xj_iter)
+  eval_time = c(eval_time, time_iter)
+  eval_plot = c(eval_plot, plot)
+  
+  
+  print(paste("iteración",i,"lista. Tiempo de ejecución:",time_iter,"seg"))
+  
+}
+
+
+
+xj_p93 = eval_xj[(1+(99*8)):(99+(99*8))]
+xj_p94 = eval_xj[(1+(99*9)):(99+(99*9))]
+xj_p95 = eval_xj[(1+(99*10)):(99+(99*10))]
+
+
+## Nuevos resultados
+paraderos$xj_p93 = xj_p93
+paraderos$xj_p94 = xj_p94
+paraderos$xj_p95 = xj_p95
+
+
+#output
+st_write(obj = paraderos, 
+         "DATOS/SHP/paraderos_sa.shp")
