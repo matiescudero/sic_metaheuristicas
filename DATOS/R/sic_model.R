@@ -6,12 +6,12 @@ library(textshape)
 
 #### Credenciales DB ####
 
-dvr = RPostgres::Postgres()
-db = 'metaheuristicas'  
-host = 'localhost'
-port = '5432' 
-user = 'postgres'  
-passwd = 'postgres'
+pg_db_parameters = list(driver = RPostgres::Postgres(),
+                        db = 'metaheuristicas',  
+                        host = 'localhost',
+                        port = '5432',
+                        user = 'postgres',
+                        passwd = 'postgres')
 
 
 ####################
@@ -22,22 +22,45 @@ passwd = 'postgres'
 
 # Genera Conexión a BD
 
-connect_to_db = function(dvr, db, host, port, user, passwd){
-  con = dbConnect(dvr, db, host, port, user, passwd, options="-c search_path=output")
-  return(con)
+ConnectionToDb = function(db_parameters){
+#' Genera un objeto 'PqConnection' de la clase "RPostgres" a partir de una lista con los parámetros
+#' de conexión a una BD. 
+#'
+#' @param db_parameters (list) Lista de parámetros de conexión a una BD.
+#'
+#' @return connection (PqConnection) Objeto de clase "Rpostgres".
+  
+  driver = db_parameters$driver
+  db = db_parameters$db
+  host = db_parameters$host
+  port = db_parameters$port
+  user = db_parameters$user
+  passwd = db_parameters$passwd
+  
+  connection = dbConnect(driver, db, host, port, user, passwd, options="-c search_path=output")
+  
+  return(connection)
 }
 
 # Almacenar tablas espaciales
 
-postgis_to_df = function(connection, layer){
+PostgisToDf = function(connection, layer){
+#' Transforma una capa espacial de la BD conectada a un Data Frame. 
+#' 
+#' @param connection (PqConnection) Objeto de clase "RPostgres".
+#' @param layer (character) Nombre de la capa espacial a transformar.
+#' 
+#' @return df (data.frame) Data Frame de la capa espacial indicada.
+  
   df = st_read(connection, layer)
+  
   return(df)
 }
 
 # Transformar dataframe de distancias a matriz  dij_matrix = column_to
 
 
-df_to_matrix = function(distance_df){
+DfToMatrix = function(distance_df){
   dij_matrix = spread(distance_df, stop_id, distance)
   dij_matrix = column_to_rownames(dij_matrix, "zc_id")
   dij_matrix = as.matrix(dij_matrix)
@@ -45,8 +68,8 @@ df_to_matrix = function(distance_df){
 }
 
 # Generar instancia
-make_instance = function(dij, ai, ni, wj){
-#'Agrupa las entradas en una lista
+MakeInstance = function(dij, ai, ni, wj){
+#' Agrupa las entradas en una lista
 #'
 #' @param dij (matrix) Matriz de distancia entre todos los nodos i y todos los paraderos j
 #' @param ai (array) Vector de demanda de los nodos i
@@ -62,13 +85,14 @@ make_instance = function(dij, ai, ni, wj){
 
 # Generar solución inicial aleatoria
 
-generate_initial_solution = function(df_paraderos, p){
-#'Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a seleccionar 
+GenerateInitialSolution = function(df_paraderos, p){
+#' Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a seleccionar.
+#' Además, se incluye el nombre de cada paradero en el vector generado. 
 #'
-#'@param df_paraderos (data.frame) Dataframe que contiene los paraderos a seleccionar
-#'@param p (int) Número de paraderos a localizar. Debe ser igual o menor a n.
+#' @param df_paraderos (data.frame) Dataframe que contiene los paraderos a seleccionar
+#' @param p (int) Número de paraderos a localizar. Debe ser igual o menor a n.
 #'
-#'@return xj (array) Vector de solución generado aleatoriamente
+#' @return xj (array) Vector de solución generado aleatoriamente
   
   # Número de paraderos disponibles
   n = nrow(df_paraderos)
@@ -77,11 +101,18 @@ generate_initial_solution = function(df_paraderos, p){
   xj = c(rep(0, n - p), rep(1, p))
   xj = sample(xj)
   
+  # Se indica el id de cada paradero para el vector generado
+  names(xj) = df_paraderos$stop_id
+  
+  
   return(xj)
 }
 
 
-get_swap_numbers = function(xj){
+## Operadores ----
+
+
+GetSwapNumbers = function(xj){
   
 #' Obtiene las posiciones para realizar el operador swap. Si al evaluar estas posiciones dentro del
 #' vector xj son idénticas se obtendrán nuevos números hasta que dejen de ser iguales.
@@ -91,7 +122,7 @@ get_swap_numbers = function(xj){
   
   while(is_equal){
     
-    n_swap = sample(2:n, 2)
+    n_swap = sample(1:n, 2)
     
     if(xj[n_swap[1]] != xj[n_swap[2]]){
       is_equal = FALSE
@@ -101,8 +132,7 @@ get_swap_numbers = function(xj){
   return(n_swap)
 }
 
-
-swap<-function(sol,i,j){
+Swap<-function(sol,i,j){
   
   piv<-sol[i]
   sol[i]<-sol[j]
@@ -111,7 +141,51 @@ swap<-function(sol,i,j){
 }
 
 
-evaluate_SIC = function(instancia, xj){
+SplitSolution = function(xj){
+  #' Separa un vector de solución en un vector de ceros y otro de unos.
+  #' 
+  #' @param xj (array) Vector de solución.
+  #' 
+  #' @return xj_list (list) Lista de arrays, contiene los vectores xj_zeros y xj_ones
+  #' 
+  
+  xj_zeros = xj[xj == 0]
+  xj_ones = xj[xj == 1]
+  
+  xj_list = list(zeros = xj_zeros, ones = xj_ones)
+  
+  return(xj_list)
+}
+
+
+SwapSplit = function(xj_list){
+  
+  xj_zeros = xj_list$zeros
+  xj_ones = xj_list$ones
+  
+  # Se escoge un elemento al azar de ambas listas y se guardan sus nombres 
+  
+  paradero_zero = names(sample(xj_zeros, 1))
+  paradero_one = names(sample(xj_ones, 1))
+  
+  # Se cambian los nombres 
+  
+  names(xj_list$zeros)[names(xj_zeros) == paradero_zero] = paradero_one
+  names(xj_list$ones)[names(xj_ones) == paradero_one] = paradero_zero
+  
+  # Pasar listas solo a una y ordenarla
+  xj = c(xj_list$zeros, xj_list$ones)
+  xj = xj[order(names(xj))]
+  
+  return(xj)
+  
+}
+
+
+
+
+
+EvaluateSIC = function(instancia, xj){
 #' Evalua la interacción espacial entre un nodo de demanda i (zona censal) y un paradero j.
 #' 
 #' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
@@ -146,7 +220,7 @@ evaluate_SIC = function(instancia, xj){
 }
 
 
-calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0){
+CalculateInitialTemperature = function(instancia, xj, spatial_interaction, p0){
 
   
   ## Se inicializan las listas
@@ -166,12 +240,12 @@ calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0)
     lista_si[i] = si_temp
     
     ## Se aplica operador sobre la solución inicial
-    n_swap = get_swap_numbers(xj_temp)
-    xj_temp = swap(xj_temp, n_swap[1], n_swap[2])
+    n_swap = GetSwapNumbers(xj_temp)
+    xj_temp = Swap(xj_temp, n_swap[1], n_swap[2])
     
     
     ## Para cada ciclo se evalúa el vector solución generado 
-    nuevo_si = evaluate_SIC(instancia, xj_temp)
+    nuevo_si = EvaluateSIC(instancia, xj_temp)
     
     ## Se calcula el delta de la interacción espacial
     delta_si = nuevo_si - si_temp
@@ -194,11 +268,12 @@ calculate_initial_temperature = function(instancia, xj, spatial_interaction, p0)
   return(t_inicial)
 }
 
-simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
+SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, iter_temp, alpha){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
   #' 
   #' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
   #' @param xj_ini (array) Vector que contiene una configuración inicial de Xj para el modelo SIC
+  #' @param operador (character) Nombre del operador a aplicar. Puede ser "swap" o "swap_split"
   #' @param n_iter (int) Número de iteraciones máximas a realizar hasta que el algoritmo no entregue una mejor solución que la actual
   #' @param alpha (float) Factor de enfriamiento de la temperatura por cada nuevo ciclo
   #' 
@@ -208,12 +283,17 @@ simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
   #' @return eval_mejor (array) mejor solución encontrada para cada iteración
   #' @return temp (array) evolución de la temperatura para cada iteración
   #'   
+  
   ## Variables de tracking
   eval_si = numeric()
   eval_si_iter = numeric()
   eval_mejor = numeric()
   eval_iter = numeric()
+  eval_time = numeric()
   temp = numeric()
+  
+  #Inicialización tiempo
+  start_time = Sys.time()
   
   # Inicialización soluciones (xj)
   ## Se genera el vector de solución inicial 
@@ -221,11 +301,11 @@ simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
   mejor_xj = xj
   
   ## Se obtiene un primer interacción espacial a partir de la evaluación de una solución random
-  spatial_interaction = evaluate_SIC(instancia, xj)
+  spatial_interaction = EvaluateSIC(instancia, xj)
   mejor_si = spatial_interaction
   
   ## Se obtiene la temperatura inicial
-  t_inicial = calculate_initial_temperature(instancia, xj, spatial_interaction, 0.5)
+  t_inicial = CalculateInitialTemperature(instancia, xj, spatial_interaction, 0.5)
   t = t_inicial
   
   ## Contador para ciclo loop
@@ -239,11 +319,23 @@ simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
     t_iter = 1
     
     while (t_iter < iter_temp){
-      #otro wail
       
-      n_swap = get_swap_numbers(xj)
-      xj_test = swap(xj, n_swap[1], n_swap[2])
-      si_test = evaluate_SIC(instancia, xj_test)
+      if (operador == "swap"){
+        
+        n_swap = GetSwapNumbers(xj)
+        xj_test = Swap(xj, n_swap[1], n_swap[2])
+        
+      }
+      
+      if (operador == "swap_split"){
+        xj_list = SplitSolution(xj)
+        xj_test = SwapSplit(xj_list)
+        
+      }
+      
+      
+      # Se evalua el vector de solución
+      si_test = EvaluateSIC(instancia, xj_test)
       
       # Se chequea si se reemplaza la solución
       delta_si = spatial_interaction - si_test
@@ -282,12 +374,20 @@ simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
     i_ciclo = i_ciclo + 1
   }
   
+  # Se finaliza el reloj
+  
+  end_time = Sys.time()
+  time_iter = as.numeric(end_time - start_time)
+  
+  eval_time = c(eval_time, time_iter)
+  
   return(list(xj = mejor_xj, 
               spatial_interaction = mejor_si, 
               eval_si=eval_si, 
               eval_mejor=eval_mejor,
               temp = temp,
               eval_iter = eval_iter,
+              eval_time = eval_time,
               eval_si_iter = eval_si_iter))
 }
 
@@ -299,35 +399,40 @@ simulated_annealing = function(instancia, xj_ini, max_iter, iter_temp, alpha){
 
 ## Conexión a BD
 
-con = connect_to_db(dvr, db, host, port, user, passwd)
+con = ConnectionToDb(pg_db_parameters)
 
 ## Tablas de entrada
 
-nodos_demanda = postgis_to_df(con, "nodos_demanda")
-paraderos = postgis_to_df(con, "paraderos")
-dij = postgis_to_df(con, "dij")
+nodos_demanda = PostgisToDf(con, "nodos_demanda")
+paraderos = PostgisToDf(con, "paraderos")
+dij = PostgisToDf(con, "dij")
 
 ### PROCESAMIENTO ###
 
 ## Dataframe dij a matriz
 
-dij_matrix = df_to_matrix(dij)
+dij_matrix = DfToMatrix(dij)
 
 ## Se agrupan las entradas de interés en una única instancia
-instancia = make_instance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, paraderos$wj)
+instancia = MakeInstance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, paraderos$wj)
 
 ## Se genera la solución inicial
-xj_ini = generate_initial_solution(paraderos, 90)
+xj_ini = GenerateInitialSolution(paraderos, 90)
 
 ### Resultados ####
 
-resultados_sa = simulated_annealing(instancia, xj_ini, 400, 10, 0.5)
+resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 400, 10, 0.5)
 
-resultados_sa$spatial_interaction
+resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 400, 10, 0.5)
+
+##
+
+resultados_sa_swap$spatial_interaction
+resultados_sa_split$spatial_interaction
 
 jpeg("rplot.jpg", width = 900, height = 500)
 
-plot((resultados_sa$eval_si), type = "l", col = "red",lwd = 2, 
+plot((resultados_sa_split$eval_si), type = "l", col = "red",lwd = 2, 
      main = "Simulated Annealing\n Modelo SIC",
      xlab = "N° iteración",
      ylab = "Spatial Interaction")
@@ -423,3 +528,23 @@ paraderos$xj_p95 = xj_p95
 #output
 st_write(obj = paraderos, 
          "DATOS/SHP/paraderos_sa.shp")
+
+
+
+xj_ini = GenerateInitialSolution(paraderos, 90)
+
+
+
+
+
+
+
+
+
+
+
+names(xj_list$zeros[paradero_zero]) = paradero_one
+
+sample(names(xj_zeros),1)
+
+xj_zeros[["PJ54"]]
