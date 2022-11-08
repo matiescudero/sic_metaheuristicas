@@ -61,6 +61,13 @@ PostgisToDf = function(connection, layer){
 
 
 DfToMatrix = function(distance_df){
+#' Transforma el formato de una matriz de distancias desde pares origen destino a una matriz
+#' de distancia entre todos los paraderos y todos los nodos de demanda.
+#' 
+#' @param distance_df (data.frame) Data Frame que contiene la distancia entre todos los pares OD.
+#' 
+#' @return dij_matrix (matrix) Matriz de distancia entre todos los nodos de demanda i y los paraderos j.
+
   dij_matrix = spread(distance_df, stop_id, distance)
   dij_matrix = column_to_rownames(dij_matrix, "zc_id")
   dij_matrix = as.matrix(dij_matrix)
@@ -202,15 +209,15 @@ EvaluateSIC = function(instancia, xj){
   
   ## Se inicializa la suma y los n's
   acum = 0
-  n_zc = length(ai)
+  n_zonas = length(ai)
   n_paraderos = length(wj)
   
   ## Ciclo para evaluar el modelo SIC
-  for(i in 1:n_zc){
+  for(i in 1:n_zonas){
     for(j in 1:n_paraderos){
       
       ## Valor de Sij para un par (i,j)
-      sij = ((wj[j]**2 * dij[i,j]**-2)/(ni[i]))*ai[i]*xj[j]
+      sij = ((wj[j]**2 * dij[i,j]**-2)/(ni[i]))*ai[i]*xj[[j]]
       acum = acum + sij
       
     }
@@ -421,9 +428,9 @@ xj_ini = GenerateInitialSolution(paraderos, 90)
 
 ### Resultados ####
 
-resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 400, 10, 0.5)
+resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 300, 10, 0.5)
 
-resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 400, 10, 0.5)
+resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 300, 10, 0.5)
 
 ##
 
@@ -459,12 +466,10 @@ st_write(obj = paraderos,
 
 
 
-
 ## TEST
 
-xj_base = generate_initial_solution(paraderos, 99)
-
-max_sic = evaluate_SIC(instancia, xj_base)
+xj_base = GenerateInitialSolution(paraderos, 99)
+max_sic = EvaluateSIC(instancia, xj_base)
 
 
 # Tracking
@@ -475,14 +480,35 @@ eval_time = numeric()
 eval_plot = numeric()
 eval_dif = numeric()
 
-for (i in 85:98){
+for (i in 90:95){
   
   #reloj
   start_time = Sys.time()
   
-  xj_ini = generate_initial_solution(paraderos, i)
+  xj_ini = GenerateInitialSolution(paraderos, 95)
   
-  resultados_sa = simulated_annealing(instancia, xj_ini, 300, 10, 0.9)
+  # Se inicializan las variables para almacenar las 11 iteraciones
+  
+  eval_iter_swap = list()
+  eval_iter_split = list()
+  
+  for (k in 1:11){
+    
+    # Se almacenan los 11 resultados utilizando ambos operadores
+    
+    resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 300, 10, 0.5)
+    
+    print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador swap"))
+    
+    resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 300, 10, 0.5)
+    
+    print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador split"))
+    
+    # Se guarda cada una de las 11 iteraciones 
+    eval_iter_swap[[paste("iter",k,sep="")]] = c(eval_iter_swap[[paste("iter",k,sep="")]],resultados_sa_swap)
+    eval_iter_split[[paste("iter",k,sep="")]] = c(eval_iter_split[[paste("iter",k,sep="")]],resultados_sa_split)
+    
+  }
   
   end_time = Sys.time()
   
@@ -514,6 +540,10 @@ for (i in 85:98){
 
 
 
+
+
+
+
 xj_p93 = eval_xj[(1+(99*8)):(99+(99*8))]
 xj_p94 = eval_xj[(1+(99*9)):(99+(99*9))]
 xj_p95 = eval_xj[(1+(99*10)):(99+(99*10))]
@@ -534,8 +564,23 @@ st_write(obj = paraderos,
 xj_ini = GenerateInitialSolution(paraderos, 90)
 
 
+iter_si_swap = numeric()
+iter_si_split = numeric()
+iter_time_swap = numeric()
+iter_time_split = numeric()
+
+for (i in eval_iter_split){
+  
+  iter_si_split = c(iter_si_split,i$spatial_interaction)
+  iter_time_split = c(iter_time_split, i$eval_time)
+}
 
 
+for (i in eval_iter_swap){
+  
+  iter_si_swap = c(iter_si_swap,i$spatial_interaction)
+  iter_time_swap = c(iter_time_swap, i$eval_time)
+}
 
 
 
