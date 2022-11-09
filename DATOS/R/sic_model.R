@@ -7,11 +7,11 @@ library(textshape)
 #### Credenciales DB ####
 
 pg_db_parameters = list(driver = RPostgres::Postgres(),
-                        db = 'metaheuristicas',  
-                        host = 'localhost',
-                        port = '5432',
-                        user = 'postgres',
-                        passwd = 'postgres')
+                         db = 'metaheuristicas',
+                         host = 'localhost',
+                         port = '5432',
+                         user = 'postgres',
+                         passwd = 'postgres')
 
 
 ####################
@@ -22,7 +22,7 @@ pg_db_parameters = list(driver = RPostgres::Postgres(),
 
 # Genera Conexión a BD
 
-ConnectionToDb = function(db_parameters){
+ConnectionToDb = function(db_parameters){ # nolint
 #' Genera un objeto 'PqConnection' de la clase "RPostgres" a partir de una lista con los parámetros
 #' de conexión a una BD. 
 #'
