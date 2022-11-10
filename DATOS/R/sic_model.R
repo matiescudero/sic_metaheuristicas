@@ -22,7 +22,7 @@ pg_db_parameters = list(driver = RPostgres::Postgres(),
 
 # Genera Conexión a BD
 
-ConnectionToDb = function(db_parameters){ # nolint
+ConnectionToDb = function(db_parameters){
 #' Genera un objeto 'PqConnection' de la clase "RPostgres" a partir de una lista con los parámetros
 #' de conexión a una BD. 
 #'
