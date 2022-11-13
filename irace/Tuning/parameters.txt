@@ -27,6 +27,6 @@
 
 # name              switches                type    values                  conditions
 max_iter_interna    "--max_iter_interna"    c       (25, 50, 75, 100)
-max_iter            "--max_iter"            i       (500,1500)
+max_iter            "--max_iter"            i       (500,1000)
 alpha               "--alpha"               r       (0.5, 0.99)
 operador            "--operador"            c       ("swap", "swap_split")
