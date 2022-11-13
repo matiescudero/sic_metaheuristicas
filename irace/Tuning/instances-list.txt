@@ -7,7 +7,4 @@
 
 # Empty lines and comments are ignored.
 
-bur26a.dat
-kra30a.dat
-kra30b.dat
-kra32.dat
+instancia422.dat

@@ -1,9 +1,16 @@
 #======================
 #Bibliotecas
 #======================
+library("RPostgres")
+library("DBI")
+library("sf")
+library("tidyr")
+library("textshape")
 library("ggplot2")
 library("irace")
-source("QAP_script.R")
+
+setwd("C:/Users/mbell/Desktop/UNIVERSIDAD/DOCTORADO/2022-2/METAHEURISTICAS/sic_metaheuristicas/irace")
+source("SIC_script.R")
 
 #=====================
 # Definición del runner
@@ -20,16 +27,22 @@ target.runner = function(experiment, scenario){
   entrada=entrada[[1]][length(entrada[[1]])]
   
   #Otros parámetros
-  N=experiment$configuration[["N"]]
-  parada=as.numeric(experiment$configuration[["parada"]])
-  T=as.numeric(experiment$configuration[["T"]])
+  max_iter_interna=experiment$configuration[["max_iter_interna"]]
+  max_iter=as.numeric(experiment$configuration[["max_iter"]])
   alpha=as.numeric(experiment$configuration[["alpha"]])
-  operador=as.numeric(experiment$configuration[["operador"]])
+  operador=(experiment$configuration[["operador"]])
   
 
-  resultado=simmulated_annealing(entrada,N,parada,T,alpha,operador)
+  #Previo a s.a
+  
+  #Se lee la instancia
+  instancia = DatToInstance(entrada)
+  ## Se genera la solución inicial
+  xj_ini = GenerateInitialSolution(instancia, 95)
+  
+  resultado=SimulatedAnnealing(instancia,xj_ini, operador,max_iter, max_iter_interna, alpha)
 
-  return(list(cost =resultado))
+  return(list(cost = resultado$spatial_interacion))
 }
 
 #======================

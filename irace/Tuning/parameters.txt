@@ -26,8 +26,7 @@
 ##    condition is satisfied, FALSE otherwise.
 
 # name              switches                type    values                  conditions
-N                   "--N"                   c       (25, 50, 75, 100)
-parada              "--parada"              i       (500,2000)
-T                   "--T"                   c       (10000,20000,30000,40000,50000)
+max_iter_interna    "--max_iter_interna"    c       (25, 50, 75, 100)
+max_iter            "--max_iter"            i       (500,1500)
 alpha               "--alpha"               r       (0.5, 0.99)
-operador            "--mutation"            c       (1, 2, 3)
+operador            "--operador"            c       ("swap", "swap_split")

@@ -92,8 +92,55 @@ MakeInstance = function(dij, ai, ni, wj){
 
 
 InstanceToDat = function(instancia, nombre_archivo){
+#' Transforma la instancia en un archivo .DAT
+#' 
+#' @param instancia (list) Instancia que contiene dij, ai, ni y wj. 
   
   lapply(instancia, function(x) write.table( data.frame(x), paste("DATOS/DAT/",nombre_archivo,'.dat',sep = ""), append= T, sep=' '))
+  
+}
+
+
+DatToInstance = function(nombre_archivo){
+#' Lee un archivo DAT y extrae los vectores y los almacena en una lista como instancia.
+#' 
+#' @param nombre_archivo (character) Nombre del archivo de extensión .DAT
+#' 
+#' @return instancia (list) Instancia que contiene dij, ai, ni y wj. 
+  
+  nombre_archivo = paste("DATOS/DAT/", nombre_archivo, sep = "")
+  
+  # Se lee el archivo dat y se almacena como DF
+  contenido_dat = read.delim(nombre_archivo, header=FALSE, sep =" ")
+  
+  # Se extrae la matriz
+  dij = contenido_dat[(2:527),(2:100)]
+  dij = as.matrix(dij)
+  class(dij) = "numeric"
+  colnames(dij) = contenido_dat[1,1:99]
+  rownames(dij) = contenido_dat[2:527,1]
+  
+  # Se elimina la matriz del contenido dat
+  contenido_dat = contenido_dat[-c(1:528),]
+  
+  # Se extrae el vector ai
+  ai = as.numeric(contenido_dat[(1:526),2])
+  
+  # Se elimina el vector ai
+  contenido_dat = contenido_dat[-c(1:527),]
+  
+  # Se extrae el vector ni
+  ni = as.numeric(contenido_dat[(1:526),2])
+  
+  # Se elimina el vector ni
+  contenido_dat = contenido_dat[-c(1:527),]
+  
+  # Se extrae el vector wj
+  wj = as.numeric(contenido_dat[(1:99),2])
+  
+  # Se almacenan los vectores en una lista
+  instancia = list(dij = dij, ai = ai, ni = ni, wj = wj)
+  return(instancia)
 }
 
 
@@ -313,10 +360,6 @@ CalculateInitialTemperature2 = function(instancia, xj, spatial_interaction, p0){
 
 
 
-
-
-
-
 SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
   #' 
@@ -470,6 +513,8 @@ instancia = MakeInstance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, parader
 #opcional: Se transforma instancia en archivo DAT
 InstanceToDat(instancia, "instancia422")
 
+#opcional: Se lee la instancia
+instancia = DatToInstance("instancia422.dat")
 
 ## Se genera la solución inicial
 xj_ini = GenerateInitialSolution(paraderos, 95)
@@ -585,46 +630,6 @@ for (i in 90:95){
   print(paste("iteración",i,"lista. Tiempo de ejecución:",time_iter,"seg"))
   
 }
-
-
-
-DatToInstance = function(nombre_archivo){
-  
-  nombre_archivo = paste("DATOS/DAT/", nombre_archivo, sep = "")
-  
-  # Se lee el archivo dat y se almacena como DF
-  contenido_dat = read.delim(nombre_archivo, header=FALSE, sep =" ")
-  
-  # Se extrae la matriz
-  dij = contenido_dat[(2:527),(2:100)]
-  dij = as.matrix(dij)
-  class(dij) = "numeric"
-  colnames(dij) = contenido_dat[1,1:99]
-  rownames(dij) = contenido_dat[2:527,1]
-  
-  # Se elimina la matriz del contenido dat
-  contenido_dat = contenido_dat[-c(1:528),]
-  
-  # Se extrae el vector ai
-  ai = as.numeric(contenido_dat[(1:526),2])
-  
-  # Se elimina el vector ai
-  contenido_dat = contenido_dat[-c(1:527),]
-  
-  # Se extrae el vector ni
-  ni = as.numeric(contenido_dat[(1:526),2])
-  
-  # Se elimina el vector ni
-  contenido_dat = contenido_dat[-c(1:527),]
-  
-  # Se extrae el vector wj
-  wj = as.numeric(contenido_dat[(1:99),2])
-  
-  # Se almacenan los vectores en una lista
-  instancia = list(dij = dij, ai = ai, ni = ni, wj = wj)
-  return(instancia)
-}
-
 
 
 xj_p93 = eval_xj[(1+(99*8)):(99+(99*8))]
