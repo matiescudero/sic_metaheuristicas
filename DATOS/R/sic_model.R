@@ -90,6 +90,14 @@ MakeInstance = function(dij, ai, ni, wj){
 }
 
 
+
+InstanceToDat = function(instancia, nombre_archivo){
+  
+  lapply(instancia, function(x) write.table( data.frame(x), paste("DATOS/DAT/",nombre_archivo,'.dat',sep = ""), append= T, sep=' '))
+}
+
+
+
 # Generar solución inicial aleatoria
 
 GenerateInitialSolution = function(df_paraderos, p){
@@ -459,6 +467,10 @@ dij_matrix = DfToMatrix(dij)
 ## Se agrupan las entradas de interés en una única instancia
 instancia = MakeInstance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, paraderos$wj)
 
+#opcional: Se transforma instancia en archivo DAT
+InstanceToDat(instancia, "instancia422")
+
+
 ## Se genera la solución inicial
 xj_ini = GenerateInitialSolution(paraderos, 95)
 
@@ -576,7 +588,42 @@ for (i in 90:95){
 
 
 
-
+DatToInstance = function(nombre_archivo){
+  
+  nombre_archivo = paste("DATOS/DAT/", nombre_archivo, sep = "")
+  
+  # Se lee el archivo dat y se almacena como DF
+  contenido_dat = read.delim(nombre_archivo, header=FALSE, sep =" ")
+  
+  # Se extrae la matriz
+  dij = contenido_dat[(2:527),(2:100)]
+  dij = as.matrix(dij)
+  class(dij) = "numeric"
+  colnames(dij) = contenido_dat[1,1:99]
+  rownames(dij) = contenido_dat[2:527,1]
+  
+  # Se elimina la matriz del contenido dat
+  contenido_dat = contenido_dat[-c(1:528),]
+  
+  # Se extrae el vector ai
+  ai = as.numeric(contenido_dat[(1:526),2])
+  
+  # Se elimina el vector ai
+  contenido_dat = contenido_dat[-c(1:527),]
+  
+  # Se extrae el vector ni
+  ni = as.numeric(contenido_dat[(1:526),2])
+  
+  # Se elimina el vector ni
+  contenido_dat = contenido_dat[-c(1:527),]
+  
+  # Se extrae el vector wj
+  wj = as.numeric(contenido_dat[(1:99),2])
+  
+  # Se almacenan los vectores en una lista
+  instancia = list(dij = dij, ai = ai, ni = ni, wj = wj)
+  return(instancia)
+}
 
 
 
@@ -707,6 +754,8 @@ f.roland <- function(n, m) {
   res[ind] <- 1
   matrix(res, ncol = n, nrow = nrow(ind), byrow = TRUE)
 }
+
+
 
 
 
