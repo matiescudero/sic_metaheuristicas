@@ -275,13 +275,48 @@ CalculateInitialTemperature = function(instancia, xj, spatial_interaction, p0){
   return(t_inicial)
 }
 
-SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, iter_temp, alpha){
+
+CalculateInitialTemperature2 = function(instancia, xj, spatial_interaction, p0){
+  
+  
+  ## Se inicializan las listas
+  lista_deltas = numeric(100)
+  lista_si = numeric(100)
+  
+  ## Se inicializa xj y si
+  xj_temp = xj
+  si_temp = spatial_interaction
+  
+  # largo de la solución
+  n = length(xj_temp)
+  
+  # Se evalúa SIC 100 veces 
+  xj_a = sapply(1:100, function(x) EvaluateSIC(instancia, Swap(xj_temp, sample(1:n,1), sample(1:n,1))))
+  xj_b = sapply(1:100, function(x) EvaluateSIC(instancia, Swap(xj_temp, sample(1:n,1), sample(1:n,1))))
+  
+  ## Se calcula el delta promedio
+  delta_promedio = mean(abs(xj_a - xj_b))
+  
+  ## De acuerdo a la fórmula exp(-(delta_promedio)/t_inicial) = p0, despejando queda:
+  t_inicial = -delta_promedio/log(p0)
+  
+  return(t_inicial)
+}
+
+
+
+
+
+
+
+SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
   #' 
   #' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
   #' @param xj_ini (array) Vector que contiene una configuración inicial de Xj para el modelo SIC
   #' @param operador (character) Nombre del operador a aplicar. Puede ser "swap" o "swap_split"
-  #' @param n_iter (int) Número de iteraciones máximas a realizar hasta que el algoritmo no entregue una mejor solución que la actual
+  #' @param max_iter (int) Número de iteraciones máximas a realizar por el ciclo externo del algoritmo.
+  #' @param max_iter_interna (int) Número máximo de iteraciones a realizar por el ciclo interno del algoritmo.
   #' @param alpha (float) Factor de enfriamiento de la temperatura por cada nuevo ciclo
   #' 
   #' @return xj (array) mejor configuración de Xj encontrada
@@ -316,16 +351,18 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, iter_temp, 
   t = t_inicial
   
   ## Contador para ciclo loop
-  i = 1
+  iter_externa = 1
   i_ciclo = 1
   n = length(xj)
   
-  ## Ciclo while
-  while(i < max_iter){
+  ## Ciclo Externo
+  while(iter_externa < max_iter){
     
-    t_iter = 1
-    
-    while (t_iter < iter_temp){
+    ## Se inicializa la variable para la iteración interna
+    iter_interna = 1
+    while (iter_interna < max_iter_interna){
+      
+      ## Se selecciona el operador a utilizar
       
       if (operador == "swap"){
         
@@ -339,7 +376,6 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, iter_temp, 
         xj_test = SwapSplit(xj_list)
         
       }
-      
       
       # Se evalua el vector de solución
       si_test = EvaluateSIC(instancia, xj_test)
@@ -357,12 +393,6 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, iter_temp, 
       if(si_test >= mejor_si){
         mejor_xj = xj_test
         mejor_si = si_test
-        # Si la solución es la mejor hasta el momento, se reinicia el contador
-        i = 1
-      }else{
-        # Si la solución del iterador es peor, se suma uno al contador y se pasa a la sig iteración,
-        # El ciclo termina una vez que al iterar n_iter veces la solución no mejore.
-        i = i + 1
       }
       
       # Variables de trackeo
@@ -370,15 +400,21 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, iter_temp, 
       eval_mejor = c(eval_mejor, mejor_si)
       temp = c(temp, t)
       
-      t_iter = t_iter + 1
+      print(iter_interna)
+      
+      iter_interna = iter_interna + 1
       }
     
     # Se aplica un factor de enfriamiento de alpha (parámetro de la función)
     t = t*alpha
     
-    eval_iter = c(eval_iter, i_ciclo)
+    eval_iter = c(eval_iter, iter_externa)
     eval_si_iter = c(eval_si_iter, spatial_interaction)
-    i_ciclo = i_ciclo + 1
+    
+    iter_externa = iter_externa + 1
+    
+    print("----")
+    print(iter_externa)
   }
   
   # Se finaliza el reloj
@@ -424,13 +460,13 @@ dij_matrix = DfToMatrix(dij)
 instancia = MakeInstance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, paraderos$wj)
 
 ## Se genera la solución inicial
-xj_ini = GenerateInitialSolution(paraderos, 90)
+xj_ini = GenerateInitialSolution(paraderos, 95)
 
 ### Resultados ####
 
-resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 300, 10, 0.5)
+resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 200, 6, 0.5)
 
-resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 300, 10, 0.5)
+resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 200, 6, 0.5)
 
 ##
 
@@ -447,7 +483,7 @@ plot((resultados_sa_split$eval_si), type = "l", col = "red",lwd = 2,
 dev.off()
 
 ## Plot para iteraciones más pequeño
-plot(resultados_sa$eval_si_iter, type = "l", col = "red",
+plot(resultados_sa_swap$eval_si_iter, type = "l", col = "red",
      sub = "temp = 10",
      main = "Simulated Annealing\n Modelo SIC",
      xlab = "N° iteración",
@@ -583,8 +619,94 @@ for (i in eval_iter_swap){
 }
 
 
+GetSICAndTimeList = function(resultados_iteraciones){
+  
+  sic_list = numeric()
+  time_list = numeric()
+  
+  for (iter in resultados_iteraciones){
+    
+    sic_list = c(sic_list, iter$spatial_interaction)
+    time_list = c(time_list, iter$eval_time)
+  }
+  
+  list_time_sic = list("sic" = sic_list, "time" = time_list)
+  
+  return(list_time_sic)
+  
+}
 
 
+time_sic_swap = GetSICAndTimeList(eval_iter_swap)
+
+time_sic_split = GetSICAndTimeList(eval_iter_split)
+
+hist(time_sic_split$sic)
+
+PlotSIC = function(resultados_iteraciones, operador){
+  
+  for (iter in seq_along(resultados_iteraciones)){
+    
+    dif_sic = max_sic - resultados_iteraciones[[iter]]$eval_si
+    
+    sic = resultados_iteraciones[[iter]]$spatial_interaction
+    
+    dif_iter = round(max_sic - sic, 2) 
+    
+    jpeg(paste("DATOS/JPEG/", operador,"_sa_iter",iter,".jpg",sep = ""), width = 1000, height = 700)
+    
+    plot = plot(dif_sic, type = "l", col = "#63B389", lwd = 2,
+                main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+                xlab = "N° iteración",
+                ylab = "Diferencia con S.I original")
+    
+    dev.off()
+    
+    
+  }
+  
+}
+
+
+PlotSIC(eval_iter_swap, "swap")
+PlotSIC(eval_iter_split, "split")
+
+
+
+
+
+
+
+
+
+jpeg(paste("DATOS/JPEG/sic_sa_",i,"_paraderos.jpg",sep = ""), width = 1000, height = 700)
+
+plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
+            main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
+            xlab = "N° iteración",
+            ylab = "Diferencia con S.I original")
+
+dev.off()
+
+
+
+plot((resultados_sa_swap$eval_si), type = "l", col = "#63B389", lwd = 2,
+     main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
+     xlab = "N° iteración",
+     ylab = "Diferencia con S.I original")
+
+
+
+n = 3
+m = 2
+
+f.roland <- function(n, m) {
+  ind <- combn(seq_len(n), m)
+  ind <- t(ind) + (seq_len(ncol(ind)) - 1) * n
+  res <- rep(0, nrow(ind) * n)
+  res[ind] <- 1
+  matrix(res, ncol = n, nrow = nrow(ind), byrow = TRUE)
+}
 
 
 
