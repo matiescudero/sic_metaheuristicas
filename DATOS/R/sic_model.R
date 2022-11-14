@@ -147,24 +147,24 @@ DatToInstance = function(nombre_archivo){
 
 # Generar solución inicial aleatoria
 
-GenerateInitialSolution = function(df_paraderos, p){
-#' Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a seleccionar.
-#' Además, se incluye el nombre de cada paradero en el vector generado. 
-#'
-#' @param df_paraderos (data.frame) Dataframe que contiene los paraderos a seleccionar
-#' @param p (int) Número de paraderos a localizar. Debe ser igual o menor a n.
-#'
-#' @return xj (array) Vector de solución generado aleatoriamente
+GenerateInitialSolution = function(instancia, p){
+  #' Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a seleccionar.
+  #' Además, se incluye el nombre de cada paradero en el vector generado. 
+  #'
+  #' @param instancia (list) Instancia que contiene dij, ai, ni y wj. 
+  #' @param p (int) Número de paraderos a localizar. Debe ser igual o menor a n.
+  #'
+  #' @return xj (array) Vector de solución generado aleatoriamente
   
   # Número de paraderos disponibles
-  n = nrow(df_paraderos)
+  n = length(instancia$wj)
   
   # Vector de solución aleatoria
   xj = c(rep(0, n - p), rep(1, p))
   xj = sample(xj)
   
   # Se indica el id de cada paradero para el vector generado
-  names(xj) = df_paraderos$stop_id
+  names(xj) = colnames(instancia$dij)
   
   
   return(xj)
@@ -451,8 +451,6 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
       eval_mejor = c(eval_mejor, mejor_si)
       temp = c(temp, t)
       
-      print(iter_interna)
-      
       iter_interna = iter_interna + 1
       }
     
@@ -485,6 +483,92 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
               eval_si_iter = eval_si_iter))
 }
 
+IterateSimulatedAnnealing = function(instancia, 
+                                     n_iteraciones, 
+                                     operador, 
+                                     max_iter, 
+                                     max_iter_interna, 
+                                     alpha){
+  
+#' Itera el algoritmo S.A las veces que se indique de acuerdo a los parámetros de ingreso.
+#' 
+#' @return eval_iter (list) Lista de 
+  
+  # Solución random inicial
+  xj_ini = GenerateInitialSolution(instancia, 95)
+  
+  # Se inicializa vector para almacenar los resultados
+  eval_iter = list()
+  
+  # Ciclo para ejecutar S.A n veces 
+  for (k in 1:n_iteraciones){
+    
+    # Se alamacenan los resultados de una ejecución
+    resultados_sa = SimulatedAnnealing(instancia,
+                                       xj_ini,
+                                       operador, 
+                                       max_iter, 
+                                       max_iter_interna, 
+                                       alpha)
+    
+    print(paste("Iteración", k, "de 11 para 95 paraderos utilizando operador swap"))
+    
+    # Se guarda cada una de las 11 iteraciones 
+    eval_iter[[paste("iter", k, sep = "")]] = c(eval_iter[[paste("iter", k, sep="")]],
+                                                resultados_sa)
+  }
+  
+  return(eval_iter)
+}
+
+
+GetSICAndTimeList = function(resultados_iteraciones){
+#' Se obtiene una lista que contiene las listas de fitness y tiempo de las ejecuciones de S.A
+#' 
+#' @param resultados_iteraciones (list) Lista que contiene los resultados de distintas iteraciones de S.A.
+#' 
+#' @return list_time_sic (list) Lista que contiene las listas de SIC y tiempo de ejecución
+  
+  sic_list = numeric()
+  time_list = numeric()
+  
+  for (iter in resultados_iteraciones){
+    
+    sic_list = c(sic_list, iter$spatial_interaction)
+    time_list = c(time_list, iter$eval_time)
+  }
+  
+  list_time_sic = list("sic" = sic_list, "time" = time_list)
+  
+  return(list_time_sic)
+  
+}
+
+PlotSIC = function(resultados_iteraciones, operador){
+#' 
+  
+  for (iter in seq_along(resultados_iteraciones)){
+    
+    # Diferencia entre la máxima interacción espacial y la obtenida en cada iteración 
+    dif_sic = max_sic - resultados_iteraciones[[iter]]$eval_si
+    
+    sic = resultados_iteraciones[[iter]]$spatial_interaction
+    
+    dif_iter = round(max_sic - sic, 2) 
+    
+    jpeg(paste("DATOS/JPEG/", operador,"_sa_iter",iter,".jpg",sep = ""), width = 1000, height = 700)
+    
+    plot = plot(dif_sic, type = "l", col = "#63B389", lwd = 2,
+                main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+                xlab = "N° iteración",
+                ylab = "Diferencia con S.I original")
+    
+    dev.off()
+    
+    
+  }
+  
+}
 
 
 #### MAIN ####
@@ -521,30 +605,20 @@ xj_ini = GenerateInitialSolution(paraderos, 95)
 
 ### Resultados ####
 
-resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 200, 6, 0.5)
+mejores_resultados = SimulatedAnnealing(instancia, xj_ini, "swap_split", 635, 25, 0.6)
 
 resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 200, 6, 0.5)
 
-##
+## Resultados Iteraciones
 
-resultados_sa_swap$spatial_interaction
-resultados_sa_split$spatial_interaction
+eval_iter = IterateSimulatedAnnealing(instancia, 
+                                      n_iteraciones = 15, 
+                                      operador = "swap_split", 
+                                      max_iter = 635, 
+                                      max_iter_interna = 25, 
+                                      alpha = 0.6)
 
-jpeg("rplot.jpg", width = 900, height = 500)
-
-plot((resultados_sa_split$eval_si), type = "l", col = "red",lwd = 2, 
-     main = "Simulated Annealing\n Modelo SIC",
-     xlab = "N° iteración",
-     ylab = "Spatial Interaction")
-
-dev.off()
-
-## Plot para iteraciones más pequeño
-plot(resultados_sa_swap$eval_si_iter, type = "l", col = "red",
-     sub = "temp = 10",
-     main = "Simulated Annealing\n Modelo SIC",
-     xlab = "N° iteración",
-     ylab = "Spatial Interaction")
+PlotSIC(eval_iter, "swap_split")
 
 
 ## Nuevos resultados
@@ -573,63 +647,58 @@ eval_time = numeric()
 eval_plot = numeric()
 eval_dif = numeric()
 
-for (i in 90:95){
   
-  #reloj
-  start_time = Sys.time()
+#reloj
+start_time = Sys.time()
+
+xj_ini = GenerateInitialSolution(paraderos, 95)
+
+# Se inicializan las variables para almacenar las 11 iteraciones
+
+eval_iter_swap = list()
+eval_iter_split = list()
+
+for (k in 1:11){
   
-  xj_ini = GenerateInitialSolution(paraderos, 95)
+  # Se almacenan los 11 resultados utilizando ambos operadores
   
-  # Se inicializan las variables para almacenar las 11 iteraciones
+  resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 300, 10, 0.5)
   
-  eval_iter_swap = list()
-  eval_iter_split = list()
+  print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador swap"))
   
-  for (k in 1:11){
-    
-    # Se almacenan los 11 resultados utilizando ambos operadores
-    
-    resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 300, 10, 0.5)
-    
-    print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador swap"))
-    
-    resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 300, 10, 0.5)
-    
-    print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador split"))
-    
-    # Se guarda cada una de las 11 iteraciones 
-    eval_iter_swap[[paste("iter",k,sep="")]] = c(eval_iter_swap[[paste("iter",k,sep="")]],resultados_sa_swap)
-    eval_iter_split[[paste("iter",k,sep="")]] = c(eval_iter_split[[paste("iter",k,sep="")]],resultados_sa_split)
-    
-  }
+  #resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 300, 10, 0.5)
   
-  end_time = Sys.time()
+  #print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador split"))
   
-  time_iter = as.numeric(end_time - start_time)
-  
-  xj_iter = resultados_sa$xj
-  si_iter = resultados_sa$spatial_interaction
-  dif_iter = round(max_sic - si_iter,2)
-  
-  jpeg(paste("DATOS/JPEG/sic_sa_",i,"_paraderos.jpg",sep = ""), width = 1000, height = 700)
-  
-  plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
-              main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
-              xlab = "N° iteración",
-              ylab = "Diferencia con S.I original")
-  
-  dev.off()
-  
-  eval_iter = c(eval_iter, i)
-  eval_si = c(eval_si, si_iter)
-  eval_xj = c(eval_xj, xj_iter)
-  eval_time = c(eval_time, time_iter)
-  eval_plot = c(eval_plot, plot)
-  
-  
-  print(paste("iteración",i,"lista. Tiempo de ejecución:",time_iter,"seg"))
+  # Se guarda cada una de las 11 iteraciones 
+  eval_iter_swap[[paste("iter",k,sep="")]] = c(eval_iter_swap[[paste("iter",k,sep="")]],resultados_sa_swap)
+  #eval_iter_split[[paste("iter",k,sep="")]] = c(eval_iter_split[[paste("iter",k,sep="")]],resultados_sa_split)
   
 }
+
+end_time = Sys.time()
+
+time_iter = as.numeric(end_time - start_time)
+
+xj_iter = resultados_sa$xj
+si_iter = resultados_sa$spatial_interaction
+dif_iter = round(max_sic - si_iter,2)
+
+jpeg(paste("DATOS/JPEG/sic_sa_",i,"_paraderos.jpg",sep = ""), width = 1000, height = 700)
+
+plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
+            main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
+            xlab = "N° iteración",
+            ylab = "Diferencia con S.I original")
+
+dev.off()
+
+eval_iter = c(eval_iter, i)
+eval_si = c(eval_si, si_iter)
+eval_xj = c(eval_xj, xj_iter)
+eval_time = c(eval_time, time_iter)
+eval_plot = c(eval_plot, plot)
+
 
 
 xj_p93 = eval_xj[(1+(99*8)):(99+(99*8))]
@@ -671,22 +740,10 @@ for (i in eval_iter_swap){
 }
 
 
-GetSICAndTimeList = function(resultados_iteraciones){
-  
-  sic_list = numeric()
-  time_list = numeric()
-  
-  for (iter in resultados_iteraciones){
-    
-    sic_list = c(sic_list, iter$spatial_interaction)
-    time_list = c(time_list, iter$eval_time)
-  }
-  
-  list_time_sic = list("sic" = sic_list, "time" = time_list)
-  
-  return(list_time_sic)
-  
-}
+
+
+
+
 
 
 time_sic_swap = GetSICAndTimeList(eval_iter_swap)
@@ -695,29 +752,7 @@ time_sic_split = GetSICAndTimeList(eval_iter_split)
 
 hist(time_sic_split$sic)
 
-PlotSIC = function(resultados_iteraciones, operador){
-  
-  for (iter in seq_along(resultados_iteraciones)){
-    
-    dif_sic = max_sic - resultados_iteraciones[[iter]]$eval_si
-    
-    sic = resultados_iteraciones[[iter]]$spatial_interaction
-    
-    dif_iter = round(max_sic - sic, 2) 
-    
-    jpeg(paste("DATOS/JPEG/", operador,"_sa_iter",iter,".jpg",sep = ""), width = 1000, height = 700)
-    
-    plot = plot(dif_sic, type = "l", col = "#63B389", lwd = 2,
-                main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
-                xlab = "N° iteración",
-                ylab = "Diferencia con S.I original")
-    
-    dev.off()
-    
-    
-  }
-  
-}
+
 
 
 PlotSIC(eval_iter_swap, "swap")
