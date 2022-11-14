@@ -367,16 +367,19 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
   
   eval_time = c(eval_time, time_iter)
   
-  print("El mejor Resultado encontrado es:", mejor_si)
+  print(paste("El mejor Resultado encontrado es:", mejor_si))
   
+  resultados_sa = list(xj = mejor_xj, 
+                       spatial_interaction = mejor_si, 
+                       eval_si=eval_si, 
+                       eval_mejor=eval_mejor,
+                       temp = temp,
+                       eval_iter = eval_iter,
+                       eval_time = eval_time,
+                       eval_si_iter = eval_si_iter)
+
+  print(paste("El mejor Resultado encontrado es:", resultados_sa$spatial_interaction))
   
-  return(list(xj = mejor_xj, 
-              spatial_interaction = mejor_si, 
-              eval_si=eval_si, 
-              eval_mejor=eval_mejor,
-              temp = temp,
-              eval_iter = eval_iter,
-              eval_time = eval_time,
-              eval_si_iter = eval_si_iter))
+  return(mejor_si)
 }
 
