@@ -37,12 +37,21 @@ target.runner = function(experiment, scenario){
   
   #Se lee la instancia
   instancia = DatToInstance(entrada)
+  
+  ## Se evalua el máximo SIC
+  xj_base = GenerateInitialSolution(instancia, 99)
+  max_sic = EvaluateSIC(instancia, xj_base)
+  
   ## Se genera la solución inicial
   xj_ini = GenerateInitialSolution(instancia, 95)
   
-  resultado=SimulatedAnnealing(instancia,xj_ini, operador,max_iter, max_iter_interna, alpha)
+  ## Se calcula la interacción espacial para cada ejecución
+  sic = SimulatedAnnealing(instancia,xj_ini, operador,max_iter, max_iter_interna, alpha)
+  
+  ## Se compara con el valor base
+  resultado = max_sic - sic
 
-  return(list(cost = resultado$spatial_interacion))
+  return(list(cost = resultado))
 }
 
 #======================
@@ -58,3 +67,4 @@ parametros = readParameters(file =  "Tuning/parameters.txt")
 escenario$targetRunner=target.runner
 
 irace(scenario = escenario, parameters = parametros)
+
