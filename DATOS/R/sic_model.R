@@ -670,7 +670,18 @@ EvaluatePopulationSIC = function(instancia, poblacion){
 
 
 
+## test
 
+sol1 = GenerateInitialSolution(instancia, 95)
+sol2 = GenerateInitialSolution(instancia, 95)
+
+
+n = length(sol1)
+# Vector de ceros
+son = numeric(n)
+
+# n° entre 1 y n
+point = sample(1:n, 1)
 
 
 
