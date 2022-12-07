@@ -358,7 +358,7 @@ CalculateInitialTemperature2 = function(instancia, xj, spatial_interaction, p0){
   return(t_inicial)
 }
 
-
+## METAHEURÍSTICAS ##
 
 SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
@@ -605,6 +605,8 @@ xj_ini = GenerateInitialSolution(paraderos, 95)
 
 ### Resultados ####
 
+#### Simulated Annealing ####
+
 mejores_resultados = SimulatedAnnealing(instancia, xj_ini, "swap_split", 635, 25, 0.6)
 
 resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 200, 6, 0.5)
@@ -619,6 +621,58 @@ eval_iter = IterateSimulatedAnnealing(instancia,
                                       alpha = 0.6)
 
 PlotSIC(eval_iter, "swap_split")
+
+
+#### Genetic Algorithm
+
+## Se genera la población inicial
+
+n_poblacion = 5
+
+poblacion = replicate(n_poblacion, GenerateInitialSolution(instancia, 95))
+
+
+EvaluatePopulationSIC = function(instancia, poblacion){
+#' Calcula el SIC para cada elemento de una población y la probabilidad de selección de cada miembro
+#' 
+#' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
+#' @param poblacion (matrix) matriz que contiene que contiene n vectores de solución
+#' 
+#' @return sic_poblacion (array) vector que contiene el SIC de cada uno de los miembros de la población
+#' @return prob_seleccion (array) Probabilidad de selección de cada miembro de la población
+#' 
+
+  ## Número de miembros de la población
+  n_miembros = ncol(poblacion)
+  
+  ## Se evalúa el SIC para cada vector de solución de la población dada
+  sic_poblacion = apply(poblacion, 2, function(x) EvaluateSIC(instancia, x))
+  
+  ## Se almacena el mínimo y máximo SIC obtenido
+  max_sic = max(sic_poblacion)
+  min_sic = min(sic_poblacion)
+  
+  ## Se calcula la probabilidad de selección para cada miembro de la población
+  if (max_sic == min_sic){
+    
+    ## Si es que los valores de SIC son iguales, la probabilidad de selección es la misma para todos.
+    prob_seleccion = rep(1/n_miembros, n_miembros)
+  } else {
+    
+    ## Si los valores de SIC son distintos, los que sean mejores tendrán una mayor probabilidad de selección
+    suma_sic = sum(sic_poblacion)
+    prob_seleccion = sic_poblacion/suma_sic
+  }
+  
+  return(list(sic_poblacion = sic_poblacion,
+              prob_seleccion = prob_seleccion))
+}
+
+
+
+
+
+
 
 
 ## Nuevos resultados
