@@ -244,6 +244,40 @@ SwapSplit = function(xj_list){
 }
 
 
+TwoPointCrossover = function(parent1, parent2){
+  #' Genera un cruzamiento de dos puntos entre dos padres y devuelve dos hijos.
+  
+  # largo del vector de solución
+  n = length(parent1)
+  
+  ## 
+  is_equal_sum = TRUE
+  
+  while (is_equal_sum){
+    
+    # Se eligen dos números entre 1 y n
+    points = sort(sample(1:n, 2))
+    
+    ## se generan los vectores a cruzar
+    piv1 = parent1[points[1]:points[2]]
+    piv2 = parent2[points[1]:points[2]]
+    
+    
+    ## Se chequea si es que la suma de los vectores es igual, sino se ejecuta de nuevo 
+    if (sum(piv1) == sum(piv2)){
+      
+      parent1[points[1]:points[2]] = piv2
+      parent2[points[1]:points[2]] = piv1
+      
+      is_equal_sum = FALSE
+    } 
+  }
+  
+  childrens = list(children1 = parent1, children2 = parent2)
+  
+  return(childrens)
+}
+
 
 
 
@@ -280,6 +314,44 @@ EvaluateSIC = function(instancia, xj){
   
   return(acum)
 }
+
+
+EvaluatePopulationSIC = function(instancia, poblacion){
+  #' Calcula el SIC para cada elemento de una población y la probabilidad de selección de cada miembro
+  #' 
+  #' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
+  #' @param poblacion (matrix) matriz que contiene que contiene n vectores de solución
+  #' 
+  #' @return sic_poblacion (array) vector que contiene el SIC de cada uno de los miembros de la población
+  #' @return prob_seleccion (array) Probabilidad de selección de cada miembro de la población
+  #' 
+  
+  ## Número de miembros de la población
+  n_miembros = ncol(poblacion)
+  
+  ## Se evalúa el SIC para cada vector de solución de la población dada
+  sic_poblacion = apply(poblacion, 2, function(x) EvaluateSIC(instancia, x))
+  
+  ## Se almacena el mínimo y máximo SIC obtenido
+  max_sic = max(sic_poblacion)
+  min_sic = min(sic_poblacion)
+  
+  ## Se calcula la probabilidad de selección para cada miembro de la población
+  if (max_sic == min_sic){
+    
+    ## Si es que los valores de SIC son iguales, la probabilidad de selección es la misma para todos.
+    prob_seleccion = rep(1/n_miembros, n_miembros)
+  } else {
+    
+    ## Si los valores de SIC son distintos, los que sean mejores tendrán una mayor probabilidad de selección
+    suma_sic = sum(sic_poblacion)
+    prob_seleccion = sic_poblacion/suma_sic
+  }
+  
+  return(list(sic_poblacion = sic_poblacion,
+              prob_seleccion = prob_seleccion))
+}
+
 
 
 CalculateInitialTemperature = function(instancia, xj, spatial_interaction, p0){
@@ -625,48 +697,45 @@ PlotSIC(eval_iter, "swap_split")
 
 #### Genetic Algorithm
 
-## Se genera la población inicial
-
-n_poblacion = 5
-
-poblacion = replicate(n_poblacion, GenerateInitialSolution(instancia, 95))
+### parámetros
+n_miembros = 5
+max_iter = 5
 
 
-EvaluatePopulationSIC = function(instancia, poblacion){
-#' Calcula el SIC para cada elemento de una población y la probabilidad de selección de cada miembro
-#' 
-#' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
-#' @param poblacion (matrix) matriz que contiene que contiene n vectores de solución
-#' 
-#' @return sic_poblacion (array) vector que contiene el SIC de cada uno de los miembros de la población
-#' @return prob_seleccion (array) Probabilidad de selección de cada miembro de la población
-#' 
+## Tamaño de la solución del problema
+n = length(instancia$wj)
 
-  ## Número de miembros de la población
-  n_miembros = ncol(poblacion)
-  
-  ## Se evalúa el SIC para cada vector de solución de la población dada
-  sic_poblacion = apply(poblacion, 2, function(x) EvaluateSIC(instancia, x))
-  
-  ## Se almacena el mínimo y máximo SIC obtenido
-  max_sic = max(sic_poblacion)
-  min_sic = min(sic_poblacion)
-  
-  ## Se calcula la probabilidad de selección para cada miembro de la población
-  if (max_sic == min_sic){
-    
-    ## Si es que los valores de SIC son iguales, la probabilidad de selección es la misma para todos.
-    prob_seleccion = rep(1/n_miembros, n_miembros)
-  } else {
-    
-    ## Si los valores de SIC son distintos, los que sean mejores tendrán una mayor probabilidad de selección
-    suma_sic = sum(sic_poblacion)
-    prob_seleccion = sic_poblacion/suma_sic
-  }
-  
-  return(list(sic_poblacion = sic_poblacion,
-              prob_seleccion = prob_seleccion))
-}
+## Se genera la población con la cantidad n_miembros 
+padres = replicate(n_miembros, GenerateInitialSolution(instancia, 95))
+
+## Se inicializa la matriz que almacenará a los hijos
+hijos = replicate(n_miembros, numeric(n))
+
+## 
+best_sic = Inf
+best_sol = numeric(n)
+
+### ciclo while
+
+## Se evalúa el SIC para todos los miembros de la población
+evaluacion_sic = EvaluatePopulationSIC(instancia, padres)
+
+## Se almacena el máximo valor encontrado para la iteración
+sic_iter = max(evaluacion_sic$sic_poblacion)
+
+## Se almacena la posición del mejor resultado encontrado
+pos_max = which(evaluacion_sic$sic_poblacion == sic_iter)
+
+## vector de mejor solución encontrada en el ciclo
+sol_iter = padres[,pos_max]
+
+# REEMPLAZO DE SOLUCIÓN
+
+# Se obtiene la posición de la peor solución y se cambia por la mejor
+pos_min = which(evaluacion_sic$sic_poblacion == min(evaluacion_sic$sic_poblacion))
+hijos[,pos_min] = best_sol
+
+
 
 
 
@@ -676,12 +745,8 @@ sol1 = GenerateInitialSolution(instancia, 95)
 sol2 = GenerateInitialSolution(instancia, 95)
 
 
-n = length(sol1)
-# Vector de ceros
-son = numeric(n)
+childrens = TwoPointCrossover(sol1, sol2)
 
-# n° entre 1 y n
-point = sample(1:n, 1)
 
 
 
