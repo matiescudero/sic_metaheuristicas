@@ -273,9 +273,9 @@ TwoPointCrossover = function(parent1, parent2){
     } 
   }
   
-  childrens = list(children1 = parent1, children2 = parent2)
+  children = parent1
   
-  return(childrens)
+  return(children)
 }
 
 
@@ -594,6 +594,87 @@ IterateSimulatedAnnealing = function(instancia,
 }
 
 
+#### Genetic Algorithm
+
+GeneticAlgorithm = function(instancia, n_miembros, max_iter, prob_mutacion){
+  
+  
+  ## Tamaño de la solución del problema
+  n = length(instancia$wj)
+  
+  # Evolución del mejor sic
+  evol = numeric(max_iter)
+  
+  ## Se genera la población con la cantidad n_miembros 
+  padres = replicate(n_miembros, GenerateInitialSolution(instancia, 95))
+  
+  ## Se inicializa la matriz que almacenará a los hijos
+  hijos = replicate(n_miembros, numeric(n))
+  
+  ## Se inicializan las variables que almacenan el mejor sic y mejor vector de solución
+  best_sic = -Inf
+  best_sol = numeric(n)
+  
+  ## Ciclo que se repetirá max_iter veces
+  
+  iter = 1
+  
+  while (iter <= max_iter) {
+    
+    
+    ## Se evalúa el SIC para todos los miembros de la población
+    evaluacion_sic = EvaluatePopulationSIC(instancia, padres)
+    
+    ## Se almacena el máximo valor encontrado para la iteración
+    sic_iter = max(evaluacion_sic$sic_poblacion)
+    
+    ## Se almacena la posición del mejor resultado encontrado
+    pos_max = which(evaluacion_sic$sic_poblacion == sic_iter)
+    
+    ## vector de mejor solución encontrada en el ciclo
+    sol_iter = padres[,pos_max]
+    
+    # REEMPLAZO DE SOLUCIÓN
+    
+    # Se obtiene la posición de la peor solución y se cambia por la mejor
+    pos_min = which(evaluacion_sic$sic_poblacion == min(evaluacion_sic$sic_poblacion))
+    hijos[,pos_min] = best_sol
+    
+    # Se actualiza la mejor solución y mejor fitness
+    if (sic_iter > best_sic){
+      
+      best_sol = sol_iter
+      best_sic = sic_iter
+    }
+    
+    ## Ciclo para generar hijos
+    for (miembro in 1:n_miembros){
+      
+      ## Se seleccionan los padres en base a su probabilidad de selección
+      n_padres = sample(1:n_miembros, 2, prob = evaluacion_sic$prob_seleccion)
+      padre1 = padres[,n_padres[1]]
+      padre2 = padres[,n_padres[2]]
+      
+      #Se genera un hijo mediante el cruzamiento de los padres
+      hijos[,miembro] = TwoPointCrossover(padre1, padre2)
+      
+      #Se aplica un swap al hijo dada una probabilidad
+      n_swap = GetSwapNumbers(hijos[,miembro])
+      hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
+    }
+    
+    # Los padres se convierten en hijos
+    padres = hijos
+    
+    # Se almacena el mejor SIC
+    evol[iter] = best_sic
+    iter = iter + 1
+  }
+  
+  return(list(sol = best_sol, sic = best_sic, evol = evol))
+  
+}
+
 GetSICAndTimeList = function(resultados_iteraciones){
 #' Se obtiene una lista que contiene las listas de fitness y tiempo de las ejecuciones de S.A
 #' 
@@ -695,48 +776,19 @@ eval_iter = IterateSimulatedAnnealing(instancia,
 PlotSIC(eval_iter, "swap_split")
 
 
-#### Genetic Algorithm
-
-### parámetros
-n_miembros = 5
-max_iter = 5
-
-
-## Tamaño de la solución del problema
-n = length(instancia$wj)
-
-## Se genera la población con la cantidad n_miembros 
-padres = replicate(n_miembros, GenerateInitialSolution(instancia, 95))
-
-## Se inicializa la matriz que almacenará a los hijos
-hijos = replicate(n_miembros, numeric(n))
-
-## 
-best_sic = Inf
-best_sol = numeric(n)
-
-### ciclo while
-
-## Se evalúa el SIC para todos los miembros de la población
-evaluacion_sic = EvaluatePopulationSIC(instancia, padres)
-
-## Se almacena el máximo valor encontrado para la iteración
-sic_iter = max(evaluacion_sic$sic_poblacion)
-
-## Se almacena la posición del mejor resultado encontrado
-pos_max = which(evaluacion_sic$sic_poblacion == sic_iter)
-
-## vector de mejor solución encontrada en el ciclo
-sol_iter = padres[,pos_max]
-
-# REEMPLAZO DE SOLUCIÓN
-
-# Se obtiene la posición de la peor solución y se cambia por la mejor
-pos_min = which(evaluacion_sic$sic_poblacion == min(evaluacion_sic$sic_poblacion))
-hijos[,pos_min] = best_sol
 
 
 
+resultados_ga = GeneticAlgorithm(instancia = instancia, 
+                                 n_miembros = 20, 
+                                 max_iter = 100, 
+                                 prob_mutacion = 0.8)
+
+
+plot(resultados_ga$evol, type = "l", col = "#63B389", lwd = 2,
+     #main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+     xlab = "N° iteración",
+     ylab = "Diferencia con S.I original")
 
 
 ## test
