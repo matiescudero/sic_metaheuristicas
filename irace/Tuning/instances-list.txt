@@ -7,4 +7,6 @@
 
 # Empty lines and comments are ignored.
 
-instancia422.dat
+instancia_g08.dat
+instancia_i09.dat
+instancia_c01.dat

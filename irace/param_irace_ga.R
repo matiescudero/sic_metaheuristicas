@@ -27,29 +27,43 @@ target.runner = function(experiment, scenario){
   entrada=entrada[[1]][length(entrada[[1]])]
   
   #Otros parámetros
-  max_iter_interna=experiment$configuration[["max_iter_interna"]]
+  n_miembros=as.numeric(experiment$configuration[["n_miembros"]])
   max_iter=as.numeric(experiment$configuration[["max_iter"]])
-  alpha=as.numeric(experiment$configuration[["alpha"]])
+  prob_mutacion=as.numeric(experiment$configuration[["prob_mutacion"]])
   operador=(experiment$configuration[["operador"]])
   
 
-  #Previo a s.a
+  #Previo a g.a
   
-  #Se lee la instancia
-  instancia = DatToInstance(entrada)
+  ## Se lee la instancia
+  
+  if (entrada == "instancia_g08.dat"){
+    
+    instancia = DatToInstance(entrada, 200, 48)
+  }
+  
+  if (entrada == "instancia_i09.dat"){
+    
+    instancia = DatToInstance(entrada, 415, 45)
+  }
+  
+  if (entrada == "instancia_c01.dat"){
+    
+    instancia = DatToInstance(entrada, 243, 56)
+  }
+  
+  # Tamaño del problema
+  len_sol = length(instancia$wj)
   
   ## Se evalua el máximo SIC
-  xj_base = GenerateInitialSolution(instancia, 99)
+  xj_base = GenerateInitialSolution(instancia, len_sol)
   max_sic = EvaluateSIC(instancia, xj_base)
   
-  ## Se genera la solución inicial
-  xj_ini = GenerateInitialSolution(instancia, 95)
-  
   ## Se calcula la interacción espacial para cada ejecución
-  sic = SimulatedAnnealing(instancia,xj_ini, operador,max_iter, max_iter_interna, alpha)
+  resultados_ga = GeneticAlgorithm(instancia, n_miembros, operador, 10, max_iter, prob_mutacion)
   
   ## Se compara con el valor base
-  resultado = max_sic - sic
+  resultado = max_sic - resultados_ga$sic
 
   return(list(cost = resultado))
 }
@@ -59,10 +73,10 @@ target.runner = function(experiment, scenario){
 #======================
 
 # Lectura de scenario
-escenario = readScenario(filename = "Tuning/scenario.txt", scenario = defaultScenario())
+escenario = readScenario(filename = "Tuning/scenario_ga.txt", scenario = defaultScenario())
 
 # Lectura de parámetros
-parametros = readParameters(file =  "Tuning/parameters.txt")
+parametros = readParameters(file =  "Tuning/parameters_ga.txt")
 
 escenario$targetRunner=target.runner
 
