@@ -14,6 +14,7 @@ pg_db_parameters = list(driver = RPostgres::Postgres(),
                          passwd = 'postgres')
 
 
+
 ####################
 #### FUNCIONES #####
 ####################
@@ -101,7 +102,7 @@ InstanceToDat = function(instancia, nombre_archivo){
 }
 
 
-DatToInstance = function(nombre_archivo){
+DatToInstance = function(nombre_archivo, n_nodos, n_paraderos){
 #' Lee un archivo DAT y extrae los vectores y los almacena en una lista como instancia.
 #' 
 #' @param nombre_archivo (character) Nombre del archivo de extensión .DAT
@@ -114,29 +115,29 @@ DatToInstance = function(nombre_archivo){
   contenido_dat = read.delim(nombre_archivo, header=FALSE, sep =" ")
   
   # Se extrae la matriz
-  dij = contenido_dat[(2:527),(2:100)]
+  dij = contenido_dat[(2:(n_nodos + 1)),(2:(n_paraderos + 1))]
   dij = as.matrix(dij)
   class(dij) = "numeric"
-  colnames(dij) = contenido_dat[1,1:99]
-  rownames(dij) = contenido_dat[2:527,1]
+  colnames(dij) = contenido_dat[1,1:n_paraderos]
+  rownames(dij) = contenido_dat[2:(n_nodos + 1),1]
   
   # Se elimina la matriz del contenido dat
-  contenido_dat = contenido_dat[-c(1:528),]
+  contenido_dat = contenido_dat[-c(1:(n_nodos + 2)),]
   
   # Se extrae el vector ai
-  ai = as.numeric(contenido_dat[(1:526),2])
+  ai = as.numeric(contenido_dat[(1:n_nodos),2])
   
   # Se elimina el vector ai
-  contenido_dat = contenido_dat[-c(1:527),]
+  contenido_dat = contenido_dat[-c(1:(n_nodos + 1)),]
   
   # Se extrae el vector ni
-  ni = as.numeric(contenido_dat[(1:526),2])
+  ni = as.numeric(contenido_dat[(1:n_nodos),2])
   
   # Se elimina el vector ni
-  contenido_dat = contenido_dat[-c(1:527),]
+  contenido_dat = contenido_dat[-c(1:n_nodos + 1),]
   
   # Se extrae el vector wj
-  wj = as.numeric(contenido_dat[(1:99),2])
+  wj = as.numeric(contenido_dat[(1:n_paraderos),2])
   
   # Se almacenan los vectores en una lista
   instancia = list(dij = dij, ai = ai, ni = ni, wj = wj)
@@ -144,23 +145,22 @@ DatToInstance = function(nombre_archivo){
 }
 
 
-
 # Generar solución inicial aleatoria
 
 GenerateInitialSolution = function(instancia, p){
-  #' Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a seleccionar.
+  #' Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a eliminar.
   #' Además, se incluye el nombre de cada paradero en el vector generado. 
   #'
   #' @param instancia (list) Instancia que contiene dij, ai, ni y wj. 
-  #' @param p (int) Número de paraderos a localizar. Debe ser igual o menor a n.
+  #' @param p (int) Número de paraderos a eliminar. Debe ser igual o menor a n.
   #'
   #' @return xj (array) Vector de solución generado aleatoriamente
   
   # Número de paraderos disponibles
-  n = length(instancia$wj)
+  n = length(instancia$wj) 
   
   # Vector de solución aleatoria
-  xj = c(rep(0, n - p), rep(1, p))
+  xj = c(rep(0, p), rep(1, n - p))
   xj = sample(xj)
   
   # Se indica el id de cada paradero para el vector generado
@@ -194,7 +194,7 @@ GetSwapNumbers = function(xj){
   return(n_swap)
 }
 
-Swap<-function(sol,i,j){
+Swap = function(sol,i,j){
   
   piv<-sol[i]
   sol[i]<-sol[j]
@@ -222,6 +222,9 @@ SplitSolution = function(xj){
 
 SwapSplit = function(xj_list){
   
+  print("xj_list:")
+  print(xj_list)
+  
   xj_zeros = xj_list$zeros
   xj_ones = xj_list$ones
   
@@ -237,6 +240,10 @@ SwapSplit = function(xj_list){
   
   # Pasar listas solo a una y ordenarla
   xj = c(xj_list$zeros, xj_list$ones)
+  
+  print("xj:")
+  print(xj)
+  
   xj = xj[order(names(xj))]
   
   return(xj)
@@ -278,7 +285,50 @@ TwoPointCrossover = function(parent1, parent2){
   return(children)
 }
 
-
+CrossoverManuel = function(padre1, padre2){
+  #' Almacena las posciones de los ceros de los vectores padres, extrae al azar p ceros y genera un hijo.
+  #' 
+  #' @parameter padre1 (list): Vector de solución al problema de optimización que se cruza con el padre 2
+  #' @parameter padre2 (list): Vector de solución al problema de optimización que se cruza con el padre 1
+  #' 
+  #' @return hijo (list): Vector resultante del cruzamiento entre los dos padres
+  
+  # Largo del vector
+  len_padre = length(padre1)
+  
+  # Se genera una lista con unos
+  hijo = padre1
+  hijo[1:len_padre] = 1
+  
+  
+  # Se almacenan las posiciones de los ceros de ambos vectores
+  ceros_p1 = which(padre1 == 0)
+  ceros_p2 = which(padre2 == 0)
+  
+  # Se almacena la cantidad de ceros de los vectores
+  n_ceros = length(ceros_p1)
+  
+  # Se unen las posiciones 
+  cero_padres = c(ceros_p1, ceros_p2)
+  
+  # Se eliminan los duplicados
+  lista_ceros = unique(cero_padres)
+  
+  
+  names(lista_ceros) = unique(names(cero_padres))
+  
+  # Se alojan los nombres de los paraderos que son ceros en los padres
+  paraderos_cero = names(lista_ceros)
+  
+  # Se extraen al azar n_ceros paraderos de la lista de nombre de paraderos
+  sample_paraderos = sample(paraderos_cero, n_ceros)
+  
+  # Se reemplazan los ceros en el hijo
+  hijo[sample_paraderos] = 0
+  
+  return(hijo)
+  
+}
 
 
 EvaluateSIC = function(instancia, xj){
@@ -596,7 +646,7 @@ IterateSimulatedAnnealing = function(instancia,
 
 #### Genetic Algorithm
 
-GeneticAlgorithm = function(instancia, n_miembros, max_iter, prob_mutacion){
+GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_iter, prob_mutacion){
   
   
   ## Tamaño de la solución del problema
@@ -606,10 +656,13 @@ GeneticAlgorithm = function(instancia, n_miembros, max_iter, prob_mutacion){
   evol = numeric(max_iter)
   
   ## Se genera la población con la cantidad n_miembros 
-  padres = replicate(n_miembros, GenerateInitialSolution(instancia, 95))
+  padres = replicate(n_miembros, GenerateInitialSolution(instancia, n_paraderos))
   
   ## Se inicializa la matriz que almacenará a los hijos
   hijos = replicate(n_miembros, numeric(n))
+  
+  # Se le asignan los nombres de los paraderos a los hijos
+  rownames(hijos) = rownames(padres)
   
   ## Se inicializan las variables que almacenan el mejor sic y mejor vector de solución
   best_sic = -Inf
@@ -656,8 +709,17 @@ GeneticAlgorithm = function(instancia, n_miembros, max_iter, prob_mutacion){
       padre2 = padres[,n_padres[2]]
       
       #Se genera un hijo mediante el cruzamiento de los padres
-      hijos[,miembro] = TwoPointCrossover(padre1, padre2)
       
+      if (operador == "two_point_crossover"){
+        
+        hijos[,miembro] = TwoPointCrossover(padre1, padre2)
+        
+      } else {
+        
+        hijos[,miembro] = CrossoverManuel(padre1, padre2)
+        
+      }
+        
       #Se aplica un swap al hijo dada una probabilidad
       n_swap = GetSwapNumbers(hijos[,miembro])
       hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
@@ -724,6 +786,9 @@ PlotSIC = function(resultados_iteraciones, operador){
 }
 
 
+
+
+
 #### MAIN ####
 
 ### ENTRADAS ###
@@ -734,35 +799,121 @@ con = ConnectionToDb(pg_db_parameters)
 
 ## Tablas de entrada
 
-nodos_demanda = PostgisToDf(con, "nodos_demanda")
-paraderos = PostgisToDf(con, "paraderos")
-dij = PostgisToDf(con, "dij")
+#############
+#### 422 ####
+#############
+
+nodos_demanda_422 = PostgisToDf(con, "nodos_demanda")
+paraderos_422 = PostgisToDf(con, "paraderos")
+dij_422 = PostgisToDf(con, "dij")
 
 ### PROCESAMIENTO ###
 
 ## Dataframe dij a matriz
 
-dij_matrix = DfToMatrix(dij)
+dij_matrix_422 = DfToMatrix(dij_422)
 
 ## Se agrupan las entradas de interés en una única instancia
-instancia = MakeInstance(dij_matrix, nodos_demanda$ai, nodos_demanda$ni, paraderos$wj)
+instancia_422 = MakeInstance(dij_matrix_422, nodos_demanda_422$ai, nodos_demanda_422$ni, paraderos_422$wj)
+
+## Se genera la solución inicial
+xj_ini_422 = GenerateInitialSolution(paraderos_422, 5)
 
 #opcional: Se transforma instancia en archivo DAT
 InstanceToDat(instancia, "instancia422")
+InstanceToDat(instancia_g08, "instancia_g08")
+InstanceToDat(instancia_i09, "instancia_i09")
+InstanceToDat(instancia_c01, "instancia_c01")
+
+
 
 #opcional: Se lee la instancia
-instancia = DatToInstance("instancia422.dat")
+instancia = DatToInstance("instancia422.dat", 526, 99)
 
-## Se genera la solución inicial
-xj_ini = GenerateInitialSolution(paraderos, 95)
+
+
 
 ### Resultados ####
 
 #### Simulated Annealing ####
 
-mejores_resultados = SimulatedAnnealing(instancia, xj_ini, "swap_split", 635, 25, 0.6)
+mejores_resultados = SimulatedAnnealing(instancia = instancia_422,
+                                        xj_ini = xj_ini_422, 
+                                        operador = "swap", 
+                                        max_iter = 635,
+                                        max_iter_interna = 25, 
+                                        alpha = 0.6)
 
 resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 200, 6, 0.5)
+
+#############
+#### G08 ####
+#############
+
+nodos_demanda_g08 = PostgisToDf(con, "nodos_demanda_g08")
+paraderos_g08 = PostgisToDf(con, "paraderos_g08")
+dij_g08 = PostgisToDf(con, "dij_g08")
+
+## Dataframe dij a matriz
+
+dij_matrix_g08 = DfToMatrix(dij_g08)
+
+## Se agrupan las entradas de interés en una única instancia
+instancia_g08 = MakeInstance(dij_matrix_g08, nodos_demanda_g08$ai, nodos_demanda_g08$ni, paraderos_g08$wj)
+
+## Se genera la solución inicial
+xj_ini_g08 = GenerateInitialSolution(paraderos_g08, 58)
+
+
+#############
+#### I09 ####
+#############
+
+nodos_demanda_i09 = PostgisToDf(con, "nodos_demanda_i09")
+paraderos_i09 = PostgisToDf(con, "paraderos_i09")
+dij_i09 = PostgisToDf(con, "dij_i09")
+
+## Dataframe dij a matriz
+
+dij_matrix_i09 = DfToMatrix(dij_i09)
+
+## Se agrupan las entradas de interés en una única instancia
+instancia_i09 = MakeInstance(dij_matrix_i09, nodos_demanda_i09$ai, nodos_demanda_i09$ni, paraderos_i09$wj)
+
+## Se genera la solución inicial
+xj_ini_g08 = GenerateInitialSolution(paraderos_g08, 58)
+
+
+
+#############
+#### C01 ####
+#############
+
+nodos_demanda_c01 = PostgisToDf(con, "nodos_demanda_c01")
+paraderos_c01 = PostgisToDf(con, "paraderos_c01")
+dij_c01 = PostgisToDf(con, "dij_c01")
+
+## Dataframe dij a matriz
+
+dij_matrix_c01 = DfToMatrix(dij_c01)
+
+## Se agrupan las entradas de interés en una única instancia
+instancia_c01 = MakeInstance(dij_matrix_c01, nodos_demanda_c01$ai, nodos_demanda_c01$ni, paraderos_c01$wj)
+
+## Se genera la solución inicial
+xj_ini_g08 = GenerateInitialSolution(paraderos_g08, 58)
+
+
+
+### Resultados ####
+
+#### Simulated Annealing ####
+
+mejores_resultados_g08 = SimulatedAnnealing(instancia_g08, xj_ini_g08, "swap", 635, 25, 0.6)
+
+resultados_sa_split = SimulatedAnnealing(instancia_422, xj_ini_422, "swap_split", 200, 6, 0.5)
+
+
 
 ## Resultados Iteraciones
 
@@ -779,8 +930,10 @@ PlotSIC(eval_iter, "swap_split")
 
 
 
-resultados_ga = GeneticAlgorithm(instancia = instancia, 
-                                 n_miembros = 20, 
+resultados_ga = GeneticAlgorithm(instancia = instancia_422, 
+                                 n_miembros = 20,
+                                 operador = "two_point_crossover",
+                                 n_paraderos = 95,
                                  max_iter = 100, 
                                  prob_mutacion = 0.8)
 
@@ -791,13 +944,10 @@ plot(resultados_ga$evol, type = "l", col = "#63B389", lwd = 2,
      ylab = "Diferencia con S.I original")
 
 
-## test
-
-sol1 = GenerateInitialSolution(instancia, 95)
-sol2 = GenerateInitialSolution(instancia, 95)
-
-
-childrens = TwoPointCrossover(sol1, sol2)
+plot(mejores_resultados_g08$eval_si, type = "l", col = "#63B389", lwd = 2,
+     #main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+     xlab = "N° iteración",
+     ylab = "Diferencia con S.I original")
 
 
 
@@ -943,6 +1093,8 @@ PlotSIC(eval_iter_split, "split")
 
 
 
+## Operador Crossover
+
 
 
 
@@ -979,10 +1131,11 @@ f.roland <- function(n, m) {
 
 
 
-
-
 names(xj_list$zeros[paradero_zero]) = paradero_one
 
 sample(names(xj_zeros),1)
 
 xj_zeros[["PJ54"]]
+
+
+
