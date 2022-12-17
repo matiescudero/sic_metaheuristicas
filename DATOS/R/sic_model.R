@@ -605,6 +605,7 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
               eval_si_iter = eval_si_iter))
 }
 
+
 IterateSimulatedAnnealing = function(instancia, 
                                      n_iteraciones, 
                                      operador, 
@@ -831,7 +832,7 @@ InstanceToDat(instancia_c01, "instancia_c01")
 instancia = DatToInstance("instancia422.dat", 526, 99)
 
 
-
+instancia_test = DatToInstance("instancia_i09.dat", 415, 49)
 
 ### Resultados ####
 
@@ -930,10 +931,10 @@ PlotSIC(eval_iter, "swap_split")
 
 
 
-resultados_ga = GeneticAlgorithm(instancia = instancia_422, 
+resultados_ga = GeneticAlgorithm(instancia = instancia_test, 
                                  n_miembros = 20,
                                  operador = "two_point_crossover",
-                                 n_paraderos = 95,
+                                 n_paraderos = 8,
                                  max_iter = 100, 
                                  prob_mutacion = 0.8)
 
