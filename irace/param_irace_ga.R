@@ -56,7 +56,7 @@ target.runner = function(experiment, scenario){
   len_sol = length(instancia$wj)
   
   ## Se evalua el máximo SIC
-  xj_base = GenerateInitialSolution(instancia, len_sol)
+  xj_base = GenerateInitialSolution(instancia, 0)
   max_sic = EvaluateSIC(instancia, xj_base)
   
   ## Se calcula la interacción espacial para cada ejecución
