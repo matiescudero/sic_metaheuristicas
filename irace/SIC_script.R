@@ -572,8 +572,11 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
       }
       
       #Se aplica un swap al hijo dada una probabilidad
-      n_swap = GetSwapNumbers(hijos[,miembro])
-      hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
+      if (prob_mutacion > runif(1)){
+        n_swap = GetSwapNumbers(hijos[,miembro])
+        hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
+      }
+      
     }
     
     # Los padres se convierten en hijos
