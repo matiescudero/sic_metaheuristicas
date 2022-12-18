@@ -665,6 +665,40 @@ CREATE TABLE output.nodos_demanda_c01 AS
 FROM ai_c01
 ORDER BY id);
 
+
+------------------------------------------------
+--/* 2.4.- Zonas censales de cada instancia */--
+------------------------------------------------
+
+CREATE TABLE zc_g08 AS
+(SELECT *
+FROM zonas_censales_rm
+WHERE (nom_comuna = 'SAN BERNARDO' OR
+	  nom_comuna = 'LA PINTANA' OR
+	  nom_comuna = 'EL BOSQUE' OR
+	  nom_comuna = 'SAN RAMÓN' OR
+	  nom_comuna = 'LA CISTERNA'));
+
+CREATE TABLE zc_i09 AS
+(SELECT *
+FROM zonas_censales_rm
+WHERE (nom_comuna = 'MAIPÚ' OR
+	  nom_comuna = 'CERRILLOS' OR
+	  nom_comuna = 'ESTACIÓN CENTRAL' OR
+	  nom_comuna = 'LO PRADO' OR
+	  nom_comuna = 'PUDAHUEL' OR
+	  nom_comuna = 'SANTIAGO'));
+	  
+CREATE TABLE zc_c01 AS
+(SELECT *
+FROM zonas_censales_rm
+WHERE (nom_comuna = 'LO BARNECHEA' OR
+	  nom_comuna = 'LAS CONDES' OR
+	  nom_comuna = 'VITACURA' OR
+ 	  nom_comuna = 'ÑUÑOA' OR
+	  nom_comuna = 'PROVIDENCIA'));
+
+
 -----------------------------------
 --/* 3.- MATRIZ DE DISTANCIA */----
 -----------------------------------
@@ -710,4 +744,6 @@ CREATE TABLE output.dij_c01 AS
 FROM ahp_paraderos_c01 AS paraderos
 CROSS JOIN ai_c01 AS demanda
 ORDER BY zc_id, stop_id);
+
+
 
