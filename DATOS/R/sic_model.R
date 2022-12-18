@@ -402,6 +402,47 @@ EvaluatePopulationSIC = function(instancia, poblacion){
               prob_seleccion = prob_seleccion))
 }
 
+GenerarPosiblesSoluciones <- function(n, p) {
+  #' Genera todos los vectores posibles para un problema de largo n situando p paraderos.
+  #' 
+  #' @param n (int): Largo de los vectores a generar
+  #' @param p (int): Número de paraderos a incluir para cada vector
+  #' 
+  #' @return 
+  
+  ind <- combn(seq_len(n), p)
+  ind <- t(ind) + (seq_len(ncol(ind)) - 1) * n
+  res <- rep(0, nrow(ind) * n)
+  res[ind] <- 1
+  res = matrix(res, ncol = n, nrow = nrow(ind), byrow = TRUE)
+  return(res)
+}
+
+ObtenerMayorSIC = function(matriz_soluciones, instancia){
+  #' Obtiene el mayor SIC dado una matriz de posibles soluciones.
+  #' 
+  #' @param matriz_soluciones (matrix): Matriz que contiene un conjunto de vectores de solución.
+  #' @param instancia (list): Instancia sobre la cual se evalúa el SIC
+  #' 
+  #' @return max_sic (int): Máximo valor de SIC para el conjunto de vectores dado.
+  
+  # Tiempo
+  start.time = Sys.time()
+  
+  # Lista que almacena todos los posibles valores de SIC para la matriz dada
+  lista_sic = apply(matriz_soluciones, 1, function(x) EvaluateSIC(instancia, x))
+  
+  #Máximo valor de SIC para todos los vectores evaluados
+  max_sic = max(lista_sic)
+  
+  end.time <- Sys.time()
+  
+  print(end.time - start.time)
+  
+  return(max_sic)
+}
+
+
 
 
 CalculateInitialTemperature = function(instancia, xj, spatial_interaction, p0){
@@ -722,8 +763,10 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
       }
         
       #Se aplica un swap al hijo dada una probabilidad
-      n_swap = GetSwapNumbers(hijos[,miembro])
-      hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
+      if (prob_mutacion > runif(1)){
+        n_swap = GetSwapNumbers(hijos[,miembro])
+        hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
+      }
     }
     
     # Los padres se convierten en hijos
@@ -929,9 +972,37 @@ PlotSIC(eval_iter, "swap_split")
 
 
 
+##### Genetic Algorithm ####
+
+## MEJOR SOLUCIÓN POSIBLE ##
+
+# Se genera vector que contenga todas las posibles soluciones para localizar 40 de 45 paraderos
+posibles_soluciones_i09 = GenerarPosiblesSoluciones(45, 40)
+
+# Se obtiene el máximo SIC posible para las soluciones generadas
+max_sic = ObtenerMayorSIC(posibles_soluciones_i09, instancia_i09)
+
+# Por mientras, se utiliza el máximo valor de SIC cómo base para el recorrido i09
+xj_base = GenerateInitialSolution(instancia, 0)
+max_sic = EvaluateSIC(instancia, xj_base)
+
+# En base a los resultados obtenidos por la parametrización, se ejecuta 30 veces el algoritmo GA
+
+# Se almacena mejor fitness, Vector de solución que arrojó mejor fitness, Tiempo de ejecución
 
 
-resultados_ga = GeneticAlgorithm(instancia = instancia_test, 
+
+
+
+
+
+
+
+
+
+
+
+resultados_ga = GeneticAlgorithm(instancia = instancia_g08, 
                                  n_miembros = 20,
                                  operador = "two_point_crossover",
                                  n_paraderos = 8,
@@ -1094,9 +1165,6 @@ PlotSIC(eval_iter_split, "split")
 
 
 
-## Operador Crossover
-
-
 
 
 
@@ -1119,24 +1187,13 @@ plot((resultados_sa_swap$eval_si), type = "l", col = "#63B389", lwd = 2,
 
 
 
-n = 3
-m = 2
-
-f.roland <- function(n, m) {
-  ind <- combn(seq_len(n), m)
-  ind <- t(ind) + (seq_len(ncol(ind)) - 1) * n
-  res <- rep(0, nrow(ind) * n)
-  res[ind] <- 1
-  matrix(res, ncol = n, nrow = nrow(ind), byrow = TRUE)
-}
 
 
 
-names(xj_list$zeros[paradero_zero]) = paradero_one
+posibles_i09 = GenerarPosiblesSoluciones(45,43)
 
-sample(names(xj_zeros),1)
 
-xj_zeros[["PJ54"]]
+
 
 
 
