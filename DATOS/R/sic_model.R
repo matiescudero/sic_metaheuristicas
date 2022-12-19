@@ -3,6 +3,8 @@ library(DBI)
 library(sf)
 library(tidyr)
 library(textshape)
+library("ggplot2") 
+library("reshape2") 
 
 #### Credenciales DB ####
 
@@ -521,7 +523,11 @@ CalculateInitialTemperature2 = function(instancia, xj, spatial_interaction, p0){
   return(t_inicial)
 }
 
+#####################
 ## METAHEURÍSTICAS ##
+#####################
+
+#### Simulated Annealing
 
 SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
@@ -646,46 +652,6 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
               eval_si_iter = eval_si_iter))
 }
 
-
-IterateSimulatedAnnealing = function(instancia, 
-                                     n_iteraciones, 
-                                     operador, 
-                                     max_iter, 
-                                     max_iter_interna, 
-                                     alpha){
-  
-#' Itera el algoritmo S.A las veces que se indique de acuerdo a los parámetros de ingreso.
-#' 
-#' @return eval_iter (list) Lista de 
-  
-  # Solución random inicial
-  xj_ini = GenerateInitialSolution(instancia, 95)
-  
-  # Se inicializa vector para almacenar los resultados
-  eval_iter = list()
-  
-  # Ciclo para ejecutar S.A n veces 
-  for (k in 1:n_iteraciones){
-    
-    # Se alamacenan los resultados de una ejecución
-    resultados_sa = SimulatedAnnealing(instancia,
-                                       xj_ini,
-                                       operador, 
-                                       max_iter, 
-                                       max_iter_interna, 
-                                       alpha)
-    
-    print(paste("Iteración", k, "de 11 para 95 paraderos utilizando operador swap"))
-    
-    # Se guarda cada una de las 11 iteraciones 
-    eval_iter[[paste("iter", k, sep = "")]] = c(eval_iter[[paste("iter", k, sep="")]],
-                                                resultados_sa)
-  }
-  
-  return(eval_iter)
-}
-
-
 #### Genetic Algorithm
 
 GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_iter, prob_mutacion){
@@ -694,8 +660,12 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
   ## Tamaño de la solución del problema
   n = length(instancia$wj)
   
-  # Evolución del mejor sic
+  # Evolución del mejor sic y tiempo de cada iteración
   evol = numeric(max_iter)
+  eval_time = numeric()
+  
+  #Inicialización tiempo
+  start_time = Sys.time()
   
   ## Se genera la población con la cantidad n_miembros 
   padres = replicate(n_miembros, GenerateInitialSolution(instancia, n_paraderos))
@@ -716,6 +686,8 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
   
   while (iter <= max_iter) {
     
+    
+    print(paste("Iteración número:",iter,"de",max_iter))
     
     ## Se evalúa el SIC para todos los miembros de la población
     evaluacion_sic = EvaluatePopulationSIC(instancia, padres)
@@ -777,27 +749,123 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
     iter = iter + 1
   }
   
-  return(list(sol = best_sol, sic = best_sic, evol = evol))
+  # Se finaliza el reloj
+  
+  end_time = Sys.time()
+  time_iter = as.numeric(end_time - start_time)
+  
+  # Se almacena el tiempo de cada iteración
+  eval_time = c(eval_time, time_iter)
+  
+  return(list(sol = best_sol, sic = best_sic, evol = evol, eval_time = eval_time, padres = padres))
   
 }
 
-GetSICAndTimeList = function(resultados_iteraciones){
+
+################
+## Resultados ##
+################
+
+IterateSimulatedAnnealing = function(instancia, n_iteraciones, n_paraderos, operador, max_iter, max_iter_interna, alpha){
+  
+  #' Itera el algoritmo S.A las veces que se indique de acuerdo a los parámetros de ingreso.
+  #' 
+  #' @return eval_iter (list) Lista de 
+  
+  # Solución random inicial
+  xj_ini = GenerateInitialSolution(instancia, n_paraderos)
+  
+  # Se inicializa vector para almacenar los resultados
+  eval_iter = list()
+  
+  # Ciclo para ejecutar S.A n veces 
+  for (k in 1:n_iteraciones){
+    
+    # Se alamacenan los resultados de una ejecución
+    resultados_sa = SimulatedAnnealing(instancia,
+                                       xj_ini,
+                                       operador, 
+                                       max_iter, 
+                                       max_iter_interna, 
+                                       alpha)
+    
+    print(paste("Iteración", k, "de", n_iteraciones, "para", n_paraderos, "paraderos utilizando operador swap"))
+    
+    # Se guarda cada una de las 11 iteraciones 
+    eval_iter[[paste("iter", k, sep = "")]] = c(eval_iter[[paste("iter", k, sep="")]],
+                                                resultados_sa)
+  }
+  
+  return(eval_iter)
+}
+
+
+IterateGeneticAlgorithm = function(instancia, n_iteraciones, n_miembros, operador, n_paraderos, max_iter, prob_mutacion){
+  
+  # Se inicializa vector para almacenar los resultados
+  eval_iter = list()
+  
+  # Ciclo para ejecutar S.A n veces 
+  for (k in 1:n_iteraciones){
+    
+    # Se alamacenan los resultados de una ejecución
+    resultados_ga = GeneticAlgorithm(instancia,
+                                     n_miembros,
+                                     operador,
+                                     n_paraderos,
+                                     max_iter,
+                                     prob_mutacion)
+    
+    print(paste("Iteración", k, "de", n_iteraciones, "para", n_paraderos, "paraderos utilizando operador", operador))
+    
+    # Se guarda cada una de las 11 iteraciones 
+    eval_iter[[paste("iter", k, sep = "")]] = c(eval_iter[[paste("iter", k, sep="")]],resultados_ga)
+  }
+                                                
+  return(eval_iter)
+}
+
+
+GetSICAndTimeList = function(resultados_iteraciones, instancia, algoritmo){
 #' Se obtiene una lista que contiene las listas de fitness y tiempo de las ejecuciones de S.A
 #' 
 #' @param resultados_iteraciones (list) Lista que contiene los resultados de distintas iteraciones de S.A.
 #' 
 #' @return list_time_sic (list) Lista que contiene las listas de SIC y tiempo de ejecución
   
+  
+  
   sic_list = numeric()
   time_list = numeric()
+  padres_list = list()
   
-  for (iter in resultados_iteraciones){
+  if (algoritmo == "SA"){
     
-    sic_list = c(sic_list, iter$spatial_interaction)
-    time_list = c(time_list, iter$eval_time)
+    for (iter in resultados_iteraciones){
+      
+      sic_list = c(sic_list, iter$spatial_interaction)
+      time_list = c(time_list, iter$eval_time)
+      
+    }
+    
   }
   
-  list_time_sic = list("sic" = sic_list, "time" = time_list)
+  if (algoritmo == "GA"){
+    
+    for (iter in resultados_iteraciones){
+      
+      sic_list = c(sic_list, iter$sic)
+      time_list = c(time_list, iter$eval_time)
+      
+      #Para almacenar listas
+      sic_padres = EvaluatePopulationSIC(instancia, iter$padres)$sic_poblacion 
+      
+      padres_list = c(padres_list, list(sic_padres))
+    }
+    
+  }
+  
+  list_time_sic = list("sic" = sic_list, "time" = time_list, "sic_parents" = padres_list)
   
   return(list_time_sic)
   
@@ -809,7 +877,7 @@ PlotSIC = function(resultados_iteraciones, operador){
   for (iter in seq_along(resultados_iteraciones)){
     
     # Diferencia entre la máxima interacción espacial y la obtenida en cada iteración 
-    dif_sic = max_sic - resultados_iteraciones[[iter]]$eval_si
+    dif_sic = max_sic - resultados_iteraciones[[iter]]$eval_si_iter
     
     sic = resultados_iteraciones[[iter]]$spatial_interaction
     
@@ -818,7 +886,7 @@ PlotSIC = function(resultados_iteraciones, operador){
     jpeg(paste("DATOS/JPEG/", operador,"_sa_iter",iter,".jpg",sep = ""), width = 1000, height = 700)
     
     plot = plot(dif_sic, type = "l", col = "#63B389", lwd = 2,
-                main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+                main = paste("39/45 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
                 xlab = "N° iteración",
                 ylab = "Diferencia con S.I original")
     
@@ -830,12 +898,58 @@ PlotSIC = function(resultados_iteraciones, operador){
 }
 
 
+ListsToDataFrame = function(listas_resultados, max_sic){
+#' Transforma las listas de listas en un Data Frame para graficar  
+  
+  matrix = do.call(cbind, listas_resultados$sic_parents)
+  df = as.data.frame(max_sic - matrix)
+  n_col = length(df)
+  col_names = c(1:n_col)
+  colnames(df) = col_names
 
+  return(df)
+}
+  
+HijosABoxplot = function(ga_df){
+  #' Genera un gráfico de boxplot para cada iteración 
+  #'   
+  
+  # Se cambia el formato del data frame de entrada
+  ga_df_long = melt(ga_df)
+  
+  # Se genera el gráfico de boxplot para los mejores hijos
+  boxplot = ggplot(ga_df_long, aes(x = variable, y = value)) +
+    geom_boxplot(fill = "#63B389") +
+    ggtitle("Diferencia SIC para últimos hijos de cada iteración") +
+    xlab("N° iteración") +
+    ylab("Diferencia SIC")
+  
+  return(boxplot)
+}   
 
+ListaResultadoADfPlot = function(lista_resultados, algoritmo){
+  
+  if (algoritmo == "SA"){
+    
+    df = as.data.frame(do.call(cbind, lista_resultados))
+    df$algoritmo = "S.A"
+  }
+  
+  if (algoritmo == "GA"){
+    
+    df = as.data.frame(do.call(cbind, lista_resultados[1:2]))
+    df$algoritmo = "G.A"
+    
+  }
+  
+  df$iter = c(1:nrow(df))
+  
+  return(df)
+}
 
-#### MAIN ####
-
-### ENTRADAS ###
+###########################
+## CREACIÓN INSTANCIAS ####
+###########################
 
 ## Conexión a BD
 
@@ -851,10 +965,7 @@ nodos_demanda_422 = PostgisToDf(con, "nodos_demanda")
 paraderos_422 = PostgisToDf(con, "paraderos")
 dij_422 = PostgisToDf(con, "dij")
 
-### PROCESAMIENTO ###
-
 ## Dataframe dij a matriz
-
 dij_matrix_422 = DfToMatrix(dij_422)
 
 ## Se agrupan las entradas de interés en una única instancia
@@ -868,7 +979,6 @@ InstanceToDat(instancia, "instancia422")
 InstanceToDat(instancia_g08, "instancia_g08")
 InstanceToDat(instancia_i09, "instancia_i09")
 InstanceToDat(instancia_c01, "instancia_c01")
-
 
 
 #opcional: Se lee la instancia
@@ -924,9 +1034,6 @@ dij_matrix_i09 = DfToMatrix(dij_i09)
 ## Se agrupan las entradas de interés en una única instancia
 instancia_i09 = MakeInstance(dij_matrix_i09, nodos_demanda_i09$ai, nodos_demanda_i09$ni, paraderos_i09$wj)
 
-## Se genera la solución inicial
-xj_ini_g08 = GenerateInitialSolution(paraderos_g08, 58)
-
 
 
 #############
@@ -972,7 +1079,50 @@ PlotSIC(eval_iter, "swap_split")
 
 
 
+################
+## RESULTADOS ##
+################
+
+# Se calcula el SIC 
+xj_base = GenerateInitialSolution(instancia_i09, 0)
+max_sic = EvaluateSIC(instancia_i09, xj_base)
+
+
+
+##############################
+##### Simulated Annealing ####
+##############################
+
+## Se itera 11 veces el algoritmo S.A y se almacenan sus resultados.
+
+
+resultados_sa = IterateSimulatedAnnealing(instancia = instancia_i09,
+                          n_iteraciones = 11, 
+                          n_paraderos = 6, 
+                          operador = "swap",
+                          max_iter = 593, 
+                          max_iter_interna = 50, 
+                          alpha = 0.93)
+
+## Se obtiene el tiempo de ejecución de cada iteración y el máximo SIC encontrado
+sa_time_sic = GetSICAndTimeList(resultados_sa, "SA")
+
+
+## Se grafican los resultados de todas las iteraciones
+PlotSIC(resultados_sa, "swap")
+
+
+## Se asocia el resultado a el shape de salida
+paraderos_i09$config_sa = resultados_sa$iter4$xj
+
+
+## Se extrae cómo shape
+#output
+st_write(obj = paraderos_i09, "DATOS/SHP/paraderos_i09.shp")
+
+############################
 ##### Genetic Algorithm ####
+############################
 
 ## MEJOR SOLUCIÓN POSIBLE ##
 
@@ -982,113 +1132,76 @@ posibles_soluciones_i09 = GenerarPosiblesSoluciones(45, 40)
 # Se obtiene el máximo SIC posible para las soluciones generadas
 max_sic = ObtenerMayorSIC(posibles_soluciones_i09, instancia_i09)
 
-# Por mientras, se utiliza el máximo valor de SIC cómo base para el recorrido i09
-xj_base = GenerateInitialSolution(instancia, 0)
-max_sic = EvaluateSIC(instancia, xj_base)
 
-# En base a los resultados obtenidos por la parametrización, se ejecuta 30 veces el algoritmo GA
+## Se ejecuta el G.A 11 veces con los parámetros obtenidos por Irace
+resultados_ga = IterateGeneticAlgorithm(instancia = instancia_i09, 
+                                        n_iteraciones = 2,
+                                        n_miembros = 40,
+                                        operador = "crossover_manuel",
+                                        n_paraderos = 6,
+                                        max_iter = 273, 
+                                        prob_mutacion = 0.73)
 
-# Se almacena mejor fitness, Vector de solución que arrojó mejor fitness, Tiempo de ejecución
+# Se obtienen los resultados de SIC, tiempo de ejecución e hijos de 
+ga_time_sic = GetSICAndTimeList(resultados_ga, instancia_i09, "GA")
 
+# Se genera un DF con los resultados del SIC para el último hijo 
+ga_df = ListsToDataFrame(ga_time_sic, max_sic)
 
+# Se grafican los resultados en un boxplot
+HijosABoxplot(ga_df)
 
+## Gráfico convergencia
 
-
-
-
-
-
-
-
-
-
-resultados_ga = GeneticAlgorithm(instancia = instancia_g08, 
-                                 n_miembros = 20,
-                                 operador = "two_point_crossover",
-                                 n_paraderos = 8,
-                                 max_iter = 100, 
-                                 prob_mutacion = 0.8)
-
-
-plot(resultados_ga$evol, type = "l", col = "#63B389", lwd = 2,
-     #main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+## Seleccionar mejor iteración
+plot(max_sic - (resultados_ga$iter1$evol), type = "l", col = "#63B389", lwd = 2,
+     main = "Gráfico Convergencia Mejor Iteración G.A",
      xlab = "N° iteración",
      ylab = "Diferencia con S.I original")
 
 
-plot(mejores_resultados_g08$eval_si, type = "l", col = "#63B389", lwd = 2,
-     #main = paste("95 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
-     xlab = "N° iteración",
-     ylab = "Diferencia con S.I original")
+#################
+## COMPARACIÓN ##
+#################
+
+# Se generan DF's de los resultados de ambos algoritmos
+df_bar_sa = ListaResultadoADfPlot(sa_time_sic, "SA")
+df_bar_ga = ListaResultadoADfPlot(ga_time_sic, "GA")
+
+# Se unen ambos df's
+df_bar = rbind(df_bar_sa, df_bar_ga)
+
+
+# Gráfico para Variación de SIC
+ggplot(df_bar, aes(fill=algoritmo, y=max_sic - sic, x=iter)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle("Diferencia SIC por iteración") +
+  xlab("N° Iteración") +
+  ylab("Diferencia SIC") +
+  scale_fill_manual('Metaheurística', values=c('#ffba4c','#63B389'))
+
+
+# Gráfico para Variación de tiempo de ejecución
+ggplot(df_bar, aes(fill=algoritmo, y=time, x=iter)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle("Tiempo ejecución por iteración") +
+  xlab("N° Iteración") +
+  ylab("Tiempo Ejecución (min)") +
+  scale_fill_manual('Metaheurística', values=c('#ffba4c','#63B389'))
+
+
+
+###############
 
 
 
 
 
-## Nuevos resultados
-paraderos$xj = resultados_sa$xj
-
-
-#output
-st_write(obj = paraderos, 
-         "DATOS/SHP/paraderos_sa.shp")
 
 
 
 
 
-## TEST
-
-xj_base = GenerateInitialSolution(paraderos, 99)
-max_sic = EvaluateSIC(instancia, xj_base)
-
-
-# Tracking
-eval_iter = numeric()
-eval_si = numeric()
-eval_xj = numeric()
-eval_time = numeric()
-eval_plot = numeric()
-eval_dif = numeric()
-
-  
-#reloj
-start_time = Sys.time()
-
-xj_ini = GenerateInitialSolution(paraderos, 95)
-
-# Se inicializan las variables para almacenar las 11 iteraciones
-
-eval_iter_swap = list()
-eval_iter_split = list()
-
-for (k in 1:11){
-  
-  # Se almacenan los 11 resultados utilizando ambos operadores
-  
-  resultados_sa_swap = SimulatedAnnealing(instancia, xj_ini, "swap", 300, 10, 0.5)
-  
-  print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador swap"))
-  
-  #resultados_sa_split = SimulatedAnnealing(instancia, xj_ini, "swap_split", 300, 10, 0.5)
-  
-  #print(paste("Iteración",k,"de 11 para","i","paraderos utilizando operador split"))
-  
-  # Se guarda cada una de las 11 iteraciones 
-  eval_iter_swap[[paste("iter",k,sep="")]] = c(eval_iter_swap[[paste("iter",k,sep="")]],resultados_sa_swap)
-  #eval_iter_split[[paste("iter",k,sep="")]] = c(eval_iter_split[[paste("iter",k,sep="")]],resultados_sa_split)
-  
-}
-
-end_time = Sys.time()
-
-time_iter = as.numeric(end_time - start_time)
-
-xj_iter = resultados_sa$xj
-si_iter = resultados_sa$spatial_interaction
-dif_iter = round(max_sic - si_iter,2)
-
-jpeg(paste("DATOS/JPEG/sic_sa_",i,"_paraderos.jpg",sep = ""), width = 1000, height = 700)
 
 plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
             main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
@@ -1096,75 +1209,6 @@ plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd 
             ylab = "Diferencia con S.I original")
 
 dev.off()
-
-eval_iter = c(eval_iter, i)
-eval_si = c(eval_si, si_iter)
-eval_xj = c(eval_xj, xj_iter)
-eval_time = c(eval_time, time_iter)
-eval_plot = c(eval_plot, plot)
-
-
-
-xj_p93 = eval_xj[(1+(99*8)):(99+(99*8))]
-xj_p94 = eval_xj[(1+(99*9)):(99+(99*9))]
-xj_p95 = eval_xj[(1+(99*10)):(99+(99*10))]
-
-
-## Nuevos resultados
-paraderos$xj_p93 = xj_p93
-paraderos$xj_p94 = xj_p94
-paraderos$xj_p95 = xj_p95
-
-
-#output
-st_write(obj = paraderos, 
-         "DATOS/SHP/paraderos_sa.shp")
-
-
-
-xj_ini = GenerateInitialSolution(paraderos, 90)
-
-
-iter_si_swap = numeric()
-iter_si_split = numeric()
-iter_time_swap = numeric()
-iter_time_split = numeric()
-
-for (i in eval_iter_split){
-  
-  iter_si_split = c(iter_si_split,i$spatial_interaction)
-  iter_time_split = c(iter_time_split, i$eval_time)
-}
-
-
-for (i in eval_iter_swap){
-  
-  iter_si_swap = c(iter_si_swap,i$spatial_interaction)
-  iter_time_swap = c(iter_time_swap, i$eval_time)
-}
-
-
-
-
-
-
-
-
-time_sic_swap = GetSICAndTimeList(eval_iter_swap)
-
-time_sic_split = GetSICAndTimeList(eval_iter_split)
-
-hist(time_sic_split$sic)
-
-
-
-
-PlotSIC(eval_iter_swap, "swap")
-PlotSIC(eval_iter_split, "split")
-
-
-
-
 
 
 
@@ -1187,10 +1231,6 @@ plot((resultados_sa_swap$eval_si), type = "l", col = "#63B389", lwd = 2,
 
 
 
-
-
-
-posibles_i09 = GenerarPosiblesSoluciones(45,43)
 
 
 
