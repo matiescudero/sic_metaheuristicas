@@ -1112,13 +1112,7 @@ sa_time_sic = GetSICAndTimeList(resultados_sa, "SA")
 PlotSIC(resultados_sa, "swap")
 
 
-## Se asocia el resultado a el shape de salida
-paraderos_i09$config_sa = resultados_sa$iter4$xj
 
-
-## Se extrae cómo shape
-#output
-st_write(obj = paraderos_i09, "DATOS/SHP/paraderos_i09.shp")
 
 ############################
 ##### Genetic Algorithm ####
@@ -1135,12 +1129,12 @@ max_sic = ObtenerMayorSIC(posibles_soluciones_i09, instancia_i09)
 
 ## Se ejecuta el G.A 11 veces con los parámetros obtenidos por Irace
 resultados_ga = IterateGeneticAlgorithm(instancia = instancia_i09, 
-                                        n_iteraciones = 2,
+                                        n_iteraciones = 11,
                                         n_miembros = 40,
                                         operador = "crossover_manuel",
                                         n_paraderos = 6,
                                         max_iter = 273, 
-                                        prob_mutacion = 0.73)
+                                        prob_mutacion = 0.85)
 
 # Se obtienen los resultados de SIC, tiempo de ejecución e hijos de 
 ga_time_sic = GetSICAndTimeList(resultados_ga, instancia_i09, "GA")
@@ -1154,7 +1148,7 @@ HijosABoxplot(ga_df)
 ## Gráfico convergencia
 
 ## Seleccionar mejor iteración
-plot(max_sic - (resultados_ga$iter1$evol), type = "l", col = "#63B389", lwd = 2,
+plot(max_sic - (resultados_ga$iter9$evol), type = "l", col = "#63B389", lwd = 2,
      main = "Gráfico Convergencia Mejor Iteración G.A",
      xlab = "N° iteración",
      ylab = "Diferencia con S.I original")
@@ -1190,47 +1184,17 @@ ggplot(df_bar, aes(fill=algoritmo, y=time, x=iter)) +
   scale_fill_manual('Metaheurística', values=c('#ffba4c','#63B389'))
 
 
+## Se asocia el resultado a el shape de salida
+paraderos_i09$config_sa = resultados_sa$iter4$xj
+paraderos_i09$config_ga = resultados_ga$iter9$sol
+
+
+## Se extrae cómo shape
+#output
+st_write(obj = paraderos_i09, "DATOS/SHP/paraderos_i09.shp")
+
 
 ###############
-
-
-
-
-
-
-
-
-
-
-
-plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
-            main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
-            xlab = "N° iteración",
-            ylab = "Diferencia con S.I original")
-
-dev.off()
-
-
-
-
-jpeg(paste("DATOS/JPEG/sic_sa_",i,"_paraderos.jpg",sep = ""), width = 1000, height = 700)
-
-plot = plot((max_sic - resultados_sa$eval_si), type = "l", col = "#63B389", lwd = 2,
-            main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
-            xlab = "N° iteración",
-            ylab = "Diferencia con S.I original")
-
-dev.off()
-
-
-
-plot((resultados_sa_swap$eval_si), type = "l", col = "#63B389", lwd = 2,
-     main = paste(i, "paraderos\n S.I =",si_iter,"\nMínima diferencia =",dif_iter),
-     xlab = "N° iteración",
-     ylab = "Diferencia con S.I original")
-
-
-
 
 
 
