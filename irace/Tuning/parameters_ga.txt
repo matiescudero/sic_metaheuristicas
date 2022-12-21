@@ -27,6 +27,5 @@
 
 # name              switches                type    values                  conditions
 n_miembros          "--n_miembros"          c       (10, 20, 30, 40, 50)
-max_iter            "--max_iter"            i       (100,500)
 prob_mutacion       "--prob_mutacion"       r       (0.5, 0.99)
 operador            "--operador"            c       ("two_point_crossover", "crossover_manuel")

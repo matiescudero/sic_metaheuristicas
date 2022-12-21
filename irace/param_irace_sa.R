@@ -64,7 +64,7 @@ target.runner = function(experiment, scenario){
   xj_ini = GenerateInitialSolution(instancia, 10)
   
   ## Se calcula la interacción espacial para cada ejecución
-  resultados_sa = SimulatedAnnealing(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha)
+  resultados_sa = SimulatedAnnealing(instancia, xj_ini, operador, 200, max_iter_interna, alpha)
   
   ## Se compara con el valor base
   resultado = max_sic - resultados_sa$spatial_interaction

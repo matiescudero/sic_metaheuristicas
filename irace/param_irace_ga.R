@@ -60,7 +60,7 @@ target.runner = function(experiment, scenario){
   max_sic = EvaluateSIC(instancia, xj_base)
   
   ## Se calcula la interacción espacial para cada ejecución
-  resultados_ga = GeneticAlgorithm(instancia, n_miembros, operador, 10, max_iter, prob_mutacion)
+  resultados_ga = GeneticAlgorithm(instancia, n_miembros, operador, 8, 300, prob_mutacion)
   
   ## Se compara con el valor base
   resultado = max_sic - resultados_ga$sic
