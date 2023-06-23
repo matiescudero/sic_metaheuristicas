@@ -871,7 +871,7 @@ GetSICAndTimeList = function(resultados_iteraciones, instancia, algoritmo){
   
 }
 
-PlotSIC = function(resultados_iteraciones, operador){
+PlotSIC = function(resultados_iteraciones, operador, nombre_ruta){
 #' 
   
   for (iter in seq_along(resultados_iteraciones)){
@@ -883,15 +883,14 @@ PlotSIC = function(resultados_iteraciones, operador){
     
     dif_iter = round(max_sic - sic, 2) 
     
-    jpeg(paste("DATOS/JPEG/", operador,"_sa_iter",iter,".jpg",sep = ""), width = 1000, height = 700)
+    jpeg(paste("DATOS/JPEG/", operador,"_sa_iter",iter,".png",sep = ""), width = 700, height = 350)
     
     plot = plot(dif_sic, type = "l", col = "#63B389", lwd = 2,
-                main = paste("39/45 paraderos\n S.I =",sic,"\nMínima diferencia =",dif_iter),
+                main = paste("Gráfico Convergencia Simulated Annealing Ruta", nombre_ruta ),
                 xlab = "N° iteración",
                 ylab = "Diferencia con S.I original")
     
     dev.off()
-    
     
   }
   
@@ -1084,8 +1083,8 @@ PlotSIC(eval_iter, "swap_split")
 ################
 
 # Se calcula el SIC 
-xj_base = GenerateInitialSolution(instancia_i09, 0)
-max_sic = EvaluateSIC(instancia_i09, xj_base)
+xj_base = GenerateInitialSolution(instancia_c01, 0)
+max_sic = EvaluateSIC(instancia_c01, xj_base)
 
 
 
@@ -1096,20 +1095,20 @@ max_sic = EvaluateSIC(instancia_i09, xj_base)
 ## Se itera 11 veces el algoritmo S.A y se almacenan sus resultados.
 
 
-resultados_sa = IterateSimulatedAnnealing(instancia = instancia_i09,
+resultados_sa = IterateSimulatedAnnealing(instancia = instancia_c01,
                           n_iteraciones = 11, 
                           n_paraderos = 6, 
                           operador = "swap",
-                          max_iter = 593, 
-                          max_iter_interna = 50, 
-                          alpha = 0.93)
+                          max_iter = 300, 
+                          max_iter_interna = 75, 
+                          alpha = 0.95)
 
 ## Se obtiene el tiempo de ejecución de cada iteración y el máximo SIC encontrado
-sa_time_sic = GetSICAndTimeList(resultados_sa, "SA")
+sa_time_sic = GetSICAndTimeList(resultados_sa, instancia_c01, "SA")
 
 
 ## Se grafican los resultados de todas las iteraciones
-PlotSIC(resultados_sa, "swap")
+PlotSIC(resultados_sa, "swap", "C01")
 
 
 
@@ -1128,16 +1127,16 @@ max_sic = ObtenerMayorSIC(posibles_soluciones_i09, instancia_i09)
 
 
 ## Se ejecuta el G.A 11 veces con los parámetros obtenidos por Irace
-resultados_ga = IterateGeneticAlgorithm(instancia = instancia_i09, 
+resultados_ga = IterateGeneticAlgorithm(instancia = instancia_c01, 
                                         n_iteraciones = 11,
-                                        n_miembros = 40,
+                                        n_miembros = 50,
                                         operador = "crossover_manuel",
                                         n_paraderos = 6,
-                                        max_iter = 273, 
-                                        prob_mutacion = 0.85)
+                                        max_iter = 450, 
+                                        prob_mutacion = 0.67)
 
 # Se obtienen los resultados de SIC, tiempo de ejecución e hijos de 
-ga_time_sic = GetSICAndTimeList(resultados_ga, instancia_i09, "GA")
+ga_time_sic = GetSICAndTimeList(resultados_ga, instancia_c01, "GA")
 
 # Se genera un DF con los resultados del SIC para el último hijo 
 ga_df = ListsToDataFrame(ga_time_sic, max_sic)
@@ -1148,7 +1147,7 @@ HijosABoxplot(ga_df)
 ## Gráfico convergencia
 
 ## Seleccionar mejor iteración
-plot(max_sic - (resultados_ga$iter9$evol), type = "l", col = "#63B389", lwd = 2,
+plot(max_sic - (resultados_ga$iter11$evol), type = "l", col = "#63B389", lwd = 2,
      main = "Gráfico Convergencia Mejor Iteración G.A",
      xlab = "N° iteración",
      ylab = "Diferencia con S.I original")
@@ -1165,12 +1164,15 @@ df_bar_ga = ListaResultadoADfPlot(ga_time_sic, "GA")
 # Se unen ambos df's
 df_bar = rbind(df_bar_sa, df_bar_ga)
 
+# 
+df_bar$sic = unlist(df_bar$sic)
+df_bar$time = unlist(df_bar$time)
 
 # Gráfico para Variación de SIC
 ggplot(df_bar, aes(fill=algoritmo, y=max_sic - sic, x=iter)) +
   geom_bar(position='dodge', stat='identity') +
-  ggtitle("Diferencia SIC por iteración") +
-  xlab("N° Iteración") +
+  ggtitle("Diferencia SIC por ejecución") +
+  xlab("N° Ejecución") +
   ylab("Diferencia SIC") +
   scale_fill_manual('Metaheurística', values=c('#ffba4c','#63B389'))
 
@@ -1178,20 +1180,20 @@ ggplot(df_bar, aes(fill=algoritmo, y=max_sic - sic, x=iter)) +
 # Gráfico para Variación de tiempo de ejecución
 ggplot(df_bar, aes(fill=algoritmo, y=time, x=iter)) +
   geom_bar(position='dodge', stat='identity') +
-  ggtitle("Tiempo ejecución por iteración") +
-  xlab("N° Iteración") +
+  ggtitle("Tiempo por ejecución") +
+  xlab("N° Ejecución") +
   ylab("Tiempo Ejecución (min)") +
   scale_fill_manual('Metaheurística', values=c('#ffba4c','#63B389'))
 
 
 ## Se asocia el resultado a el shape de salida
-paraderos_i09$config_sa = resultados_sa$iter4$xj
-paraderos_i09$config_ga = resultados_ga$iter9$sol
+paraderos_c01$config_sa = resultados_sa$iter3$xj
+paraderos_c01$config_ga = resultados_ga$iter11$sol
 
 
 ## Se extrae cómo shape
 #output
-st_write(obj = paraderos_i09, "DATOS/SHP/paraderos_i09.shp")
+st_write(obj = paraderos_c01, "DATOS/SHP/paraderos_c01.shp")
 
 
 ###############
