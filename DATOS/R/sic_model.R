@@ -63,19 +63,22 @@ PostgisToDf = function(connection, layer){
 # Transformar dataframe de distancias a matriz  dij_matrix = column_to
 
 
-DfToMatrix = function(distance_df){
-#' Transforma el formato de una matriz de distancias desde pares origen destino a una matriz
-#' de distancia entre todos los paraderos y todos los nodos de demanda.
-#' 
-#' @param distance_df (data.frame) Data Frame que contiene la distancia entre todos los pares OD.
-#' 
-#' @return dij_matrix (matrix) Matriz de distancia entre todos los nodos de demanda i y los paraderos j.
-
-  dij_matrix = spread(distance_df, stop_id, distance)
+DfToMatrix = function(distance_df, use_travel_time=FALSE){
+  #' Transforma el formato de una matriz de distancias desde pares origen destino a una matriz
+  #' de distancia entre todos los paraderos y todos los nodos de demanda.
+  #' 
+  #' @param distance_df (data.frame) Data Frame que contiene la distancia entre todos los pares OD.
+  #' @param use_travel_time (logical) Indica si se debe usar 'travel_time' en lugar de 'distance'.
+  #' 
+  #' @return dij_matrix (matrix) Matriz de distancia entre todos los nodos de demanda i y los paraderos j.
+  
+  column_name = ifelse(use_travel_time, 'travel_time', 'distance')
+  dij_matrix = spread(distance_df, stop_id, column_name)
   dij_matrix = column_to_rownames(dij_matrix, "zc_id")
   dij_matrix = as.matrix(dij_matrix)
   return(dij_matrix)
 }
+
 
 # Generar instancia
 MakeInstance = function(dij, ai, ni, wj){
@@ -149,25 +152,37 @@ DatToInstance = function(nombre_archivo, n_nodos, n_paraderos){
 
 # Generar solución inicial aleatoria
 
-GenerateInitialSolution = function(instancia, p){
+GenerateInitialSolution = function(instancia, p, paraderos_bloqueados = NULL){
   #' Genera el vector Xj inicial de forma aleatoria, indicando el n° p de paraderos a eliminar.
   #' Además, se incluye el nombre de cada paradero en el vector generado. 
+  #' Se pueden especificar paraderos que no deben ser eliminados.
   #'
   #' @param instancia (list) Instancia que contiene dij, ai, ni y wj. 
   #' @param p (int) Número de paraderos a eliminar. Debe ser igual o menor a n.
+  #' @param paraderos_bloqueados (vector) Vector con los nombres de los paraderos que no deben ser eliminados. Por defecto es NULL.
   #'
   #' @return xj (array) Vector de solución generado aleatoriamente
   
   # Número de paraderos disponibles
   n = length(instancia$wj) 
   
-  # Vector de solución aleatoria
-  xj = c(rep(0, p), rep(1, n - p))
-  xj = sample(xj)
-  
   # Se indica el id de cada paradero para el vector generado
-  names(xj) = colnames(instancia$dij)
+  paraderos = colnames(instancia$dij)
   
+  # Si se han especificado paraderos bloqueados, se remueven de la lista de paraderos
+  if(!is.null(paraderos_bloqueados)){
+    paraderos_libres = setdiff(paraderos, paraderos_bloqueados)
+  } else {
+    paraderos_libres = paraderos
+  }
+  
+  # Selecciona aleatoriamente p paraderos que no están bloqueados para ser 0's
+  paraderos_cero = sample(paraderos_libres, p)
+  
+  # Crea el vector de solución
+  xj = rep(1, n)
+  names(xj) = paraderos
+  xj[paraderos_cero] = 0
   
   return(xj)
 }
@@ -176,10 +191,17 @@ GenerateInitialSolution = function(instancia, p){
 ## Operadores ----
 
 
-GetSwapNumbers = function(xj){
+GetSwapNumbers = function(xj, paraderos_bloqueados = NULL){
   
-#' Obtiene las posiciones para realizar el operador swap. Si al evaluar estas posiciones dentro del
-#' vector xj son idénticas se obtendrán nuevos números hasta que dejen de ser iguales.
+  #' Obtiene las posiciones para realizar el operador swap. Si al evaluar estas posiciones dentro del
+  #' vector xj son idénticas o corresponden a paraderos bloqueados, se obtendrán nuevos números hasta 
+  #' que dejen de ser iguales y no estén en los paraderos bloqueados.
+  #'
+  #' @param xj Un vector que representa la secuencia de paraderos, donde los nombres del vector 
+  #' representan los identificadores de los paraderos.
+  #' @param paraderos_bloqueados Un vector opcional que contiene los identificadores de los paraderos 
+  #' bloqueados. Si no se proporciona, se asume que no hay paraderos bloqueados.
+  #' @return Un vector de longitud 2 con los índices seleccionados para el operador swap.
   
   n = length(xj)
   is_equal = TRUE
@@ -188,13 +210,16 @@ GetSwapNumbers = function(xj){
     
     n_swap = sample(1:n, 2)
     
-    if(xj[n_swap[1]] != xj[n_swap[2]]){
+    if(xj[n_swap[1]] != xj[n_swap[2]] && 
+       !(names(xj)[n_swap[1]] %in% paraderos_bloqueados) && 
+       !(names(xj)[n_swap[2]] %in% paraderos_bloqueados)){
       is_equal = FALSE
     }
   }
   
   return(n_swap)
 }
+
 
 Swap = function(sol,i,j){
   
@@ -529,7 +554,7 @@ CalculateInitialTemperature2 = function(instancia, xj, spatial_interaction, p0){
 
 #### Simulated Annealing
 
-SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha){
+SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_interna, alpha, paraderos_bloqueados = NULL){
   #' Calcula el menor costo al aplicar el algoritmo de S.A a una función objetivo dada.
   #' 
   #' @param instancia (list) Lista que incluye la matriz dij y los vectores ai, ni y wj
@@ -538,6 +563,8 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
   #' @param max_iter (int) Número de iteraciones máximas a realizar por el ciclo externo del algoritmo.
   #' @param max_iter_interna (int) Número máximo de iteraciones a realizar por el ciclo interno del algoritmo.
   #' @param alpha (float) Factor de enfriamiento de la temperatura por cada nuevo ciclo
+  #' @param paraderos_bloqueados Un vector opcional que contiene los identificadores de los paraderos 
+  #' bloqueados. Si no se proporciona, se asume que no hay paraderos bloqueados.
   #' 
   #' @return xj (array) mejor configuración de Xj encontrada
   #' @return spatial_interaction (float) máximo valor de interacción espacial encontrada para el modelo SIC
@@ -561,6 +588,8 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
   ## Se genera el vector de solución inicial 
   xj = xj_ini
   mejor_xj = xj
+  
+  print(xj)
   
   ## Se obtiene un primer interacción espacial a partir de la evaluación de una solución random
   spatial_interaction = EvaluateSIC(instancia, xj)
@@ -586,7 +615,9 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
       
       if (operador == "swap"){
         
-        n_swap = GetSwapNumbers(xj)
+        n_swap = GetSwapNumbers(xj, paraderos_bloqueados)
+        
+        
         xj_test = Swap(xj, n_swap[1], n_swap[2])
         
       }
@@ -654,7 +685,7 @@ SimulatedAnnealing = function(instancia, xj_ini, operador, max_iter, max_iter_in
 
 #### Genetic Algorithm
 
-GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_iter, prob_mutacion){
+GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_iter, prob_mutacion, paraderos_bloqueados){
   
   
   ## Tamaño de la solución del problema
@@ -668,7 +699,7 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
   start_time = Sys.time()
   
   ## Se genera la población con la cantidad n_miembros 
-  padres = replicate(n_miembros, GenerateInitialSolution(instancia, n_paraderos))
+  padres = replicate(n_miembros, GenerateInitialSolution(instancia, n_paraderos, paraderos_bloqueados))
   
   ## Se inicializa la matriz que almacenará a los hijos
   hijos = replicate(n_miembros, numeric(n))
@@ -736,7 +767,7 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
         
       #Se aplica un swap al hijo dada una probabilidad
       if (prob_mutacion > runif(1)){
-        n_swap = GetSwapNumbers(hijos[,miembro])
+        n_swap = GetSwapNumbers(hijos[,miembro], paraderos_bloqueados)
         hijos[,miembro] = Swap(hijos[,miembro], n_swap[1], n_swap[2])
       }
     }
@@ -766,14 +797,15 @@ GeneticAlgorithm = function(instancia, n_miembros, operador, n_paraderos, max_it
 ## Resultados ##
 ################
 
-IterateSimulatedAnnealing = function(instancia, n_iteraciones, n_paraderos, operador, max_iter, max_iter_interna, alpha){
+IterateSimulatedAnnealing = function(instancia, n_iteraciones, n_paraderos, operador, max_iter, max_iter_interna, alpha,
+                                     paraderos_bloqueados){
   
   #' Itera el algoritmo S.A las veces que se indique de acuerdo a los parámetros de ingreso.
   #' 
   #' @return eval_iter (list) Lista de 
   
   # Solución random inicial
-  xj_ini = GenerateInitialSolution(instancia, n_paraderos)
+  xj_ini = GenerateInitialSolution(instancia, n_paraderos, paraderos_bloqueados)
   
   # Se inicializa vector para almacenar los resultados
   eval_iter = list()
@@ -787,7 +819,8 @@ IterateSimulatedAnnealing = function(instancia, n_iteraciones, n_paraderos, oper
                                        operador, 
                                        max_iter, 
                                        max_iter_interna, 
-                                       alpha)
+                                       alpha,
+                                       paraderos_bloqueados)
     
     print(paste("Iteración", k, "de", n_iteraciones, "para", n_paraderos, "paraderos utilizando operador swap"))
     
@@ -1196,10 +1229,55 @@ paraderos_c01$config_ga = resultados_ga$iter11$sol
 st_write(obj = paraderos_c01, "DATOS/SHP/paraderos_c01.shp")
 
 
-###############
+#########################
+#### C01 con tiempo #####
+#########################
+
+nodos_demanda_c01 = PostgisToDf(con, "nodos_demanda_c01")
+paraderos_c01 = PostgisToDf(con, "paraderos_c01")
+tij_c01 = PostgisToDf(con, "tij_c01")
+
+## Dataframe dij a matriz
+
+tij_matrix_c01 = DfToMatrix(tij_c01, use_travel_time = TRUE)
+
+## Se agrupan las entradas de interés en una única instancia
+instancia_c01 = MakeInstance(tij_matrix_c01, nodos_demanda_c01$ai, nodos_demanda_c01$ni, paraderos_c01$wj)
+
+## Se genera la solución inicial
+xj_ini_c01 = GenerateInitialSolution(paraderos_c01, 6)
+
+# Se ejecuta una vez S.A
+resultados_sa_c01 = IterateSimulatedAnnealing(instancia = instancia_c01,
+                                          n_iteraciones = 1, 
+                                          n_paraderos = 6, 
+                                          operador = "swap",
+                                          max_iter = 300, 
+                                          max_iter_interna = 75, 
+                                          alpha = 0.95,
+                                          paraderos_bloqueados = c("PC599", "PC598"))
+
+## Se obtiene el tiempo de ejecución de cada iteración y el máximo SIC encontrado
+sa_time_sic = GetSICAndTimeList(resultados_sa_c01, instancia_c01, "SA")
+
+
+
+# Se calcula el SIC 
+xj_base = GenerateInitialSolution(instancia_c01, 0)
+max_sic = EvaluateSIC(instancia_c01, xj_base)
+
+
+PlotSIC(resultados_sa_c01, "swap", "C01")
+
+
+## Se grafican los resultados de todas las iteraciones
+paraderos_c01$sol_sa_t = resultados_sa_c01$iter1$xj
 
 
 
 
 
 
+## Se extrae cómo shape
+#output
+st_write(obj = paraderos_c01, "DATOS/SHP/paraderos_c01_t.shp", append = FALSE)
